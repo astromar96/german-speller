@@ -13,15 +13,66 @@ function App() {
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [playingWordId, setPlayingWordId] = useState<number | null>(null);
   const [audioTestResult, setAudioTestResult] = useState<string>('');
+  const [audioSpeed, setAudioSpeed] = useState<number>(() => {
+    const saved = localStorage.getItem('audioSpeed');
+    return saved ? parseFloat(saved) : 1.0;
+  });
+  const [speedChangeNotification, setSpeedChangeNotification] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const speechSynthesisRef = useRef<SpeechSynthesis | null>(null);
   
   // Embedded Google Cloud API key
   const GOOGLE_CLOUD_API_KEY = 'AIzaSyCsx1IyPxscQ1YpPOGEHSBRQBQPvFjog7k';
 
+  // Save speed to localStorage whenever it changes
+  React.useEffect(() => {
+    localStorage.setItem('audioSpeed', audioSpeed.toString());
+  }, [audioSpeed]);
+
+  // Keyboard shortcuts for speed control
+  React.useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey) {
+        switch (event.key) {
+          case '1':
+            event.preventDefault();
+            setAudioSpeed(1.0);
+            showSpeedNotification(1.0);
+            break;
+          case '2':
+            event.preventDefault();
+            setAudioSpeed(2.0);
+            showSpeedNotification(2.0);
+            break;
+          case '3':
+            event.preventDefault();
+            setAudioSpeed(0.5);
+            showSpeedNotification(0.5);
+            break;
+          case '4':
+            event.preventDefault();
+            setAudioSpeed(1.5);
+            showSpeedNotification(1.5);
+            break;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, []);
+
   const showMessage = (text: string, type: 'success' | 'error' | 'info') => {
     setMessage({ text, type });
     setTimeout(() => setMessage(null), 5000);
+  };
+
+  const showSpeedNotification = (speed: number) => {
+    const speedLabel = speed < 0.8 ? '🐌 Slow' : 
+                      speed < 1.2 ? '🚶 Normal' : 
+                      speed < 1.5 ? '🏃 Fast' : '⚡ Very Fast';
+    setSpeedChangeNotification(`Speed changed to ${speed}x (${speedLabel})`);
+    setTimeout(() => setSpeedChangeNotification(''), 2000);
   };
 
   const uploadFile = async (file: File) => {
@@ -70,6 +121,9 @@ function App() {
       speechSynthesisRef.current.cancel();
     }
 
+    // Show speed indicator
+    showMessage(`Playing "${word}" at ${audioSpeed}x speed`, 'info');
+
     // Always use Google Cloud TTS with embedded API key
     speakWithGoogleTTS(word);
   };
@@ -91,7 +145,7 @@ function App() {
           },
           audioConfig: {
             audioEncoding: 'MP3',
-            speakingRate: 0.8,
+            speakingRate: audioSpeed, // Use the selected speed
             pitch: 0,
             volumeGainDb: 0
           }
@@ -140,7 +194,7 @@ function App() {
     // Create new speech synthesis
     const utterance = new SpeechSynthesisUtterance(word);
     utterance.lang = 'de-DE'; // German language
-    utterance.rate = 0.7; // Slower for better pronunciation
+    utterance.rate = audioSpeed; // Use the selected speed
     utterance.pitch = 1.0;
     utterance.volume = 1.0;
 
@@ -212,7 +266,7 @@ function App() {
       if (selectedVoice.name.toLowerCase().includes('premium') || 
           selectedVoice.name.toLowerCase().includes('enhanced') ||
           selectedVoice.name.toLowerCase().includes('neural')) {
-        utterance.rate = 0.8; // Slightly faster for premium voices
+        utterance.rate = audioSpeed; // Use the selected speed
       }
     }
 
@@ -272,7 +326,7 @@ function App() {
           },
           audioConfig: {
             audioEncoding: 'MP3',
-            speakingRate: 0.8,
+            speakingRate: audioSpeed, // Use the selected speed
             pitch: 0,
             volumeGainDb: 0
           }
@@ -308,6 +362,7 @@ function App() {
       const data = await response.json();
       setAudioTestResult(prev => prev + '\n✅ Google Cloud TTS API connected successfully');
       setAudioTestResult(prev => prev + '\n🌟 Using premium German neural voice: de-DE-Neural2-A (Female)');
+      setAudioTestResult(prev => prev + `\n⚡ Audio speed set to: ${audioSpeed}x`);
       
       // Play the audio
       const audioContent = data.audioContent;
@@ -370,6 +425,7 @@ function App() {
       
       utterance.onstart = () => {
         setAudioTestResult(prev => prev + '\n🎵 Web Speech API audio started...');
+        setAudioTestResult(prev => prev + `\n⚡ Audio speed set to: ${audioSpeed}x`);
       };
       
       utterance.onend = () => {
@@ -414,9 +470,19 @@ function App() {
           <h1 className="text-4xl font-bold text-gray-800 mb-2">
             🇩🇪 German Speller
           </h1>
-          <p className="text-lg text-gray-600">
+          <p className="text-lg text-gray-600 mb-4">
             Learn German words with Arabic translations and premium audio pronunciation
           </p>
+          {/* Speed Indicator */}
+          <div className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-full">
+            <span className="text-sm font-medium text-blue-800">⚡ Audio Speed:</span>
+            <span className="text-lg font-bold text-blue-600">{audioSpeed}x</span>
+            <span className="text-xs text-blue-600">
+              {audioSpeed < 0.8 ? '🐌 Slow' : 
+               audioSpeed < 1.2 ? '🚶 Normal' : 
+               audioSpeed < 1.5 ? '🏃 Fast' : '⚡ Very Fast'}
+            </span>
+          </div>
         </div>
 
         {/* Message Display */}
@@ -427,6 +493,13 @@ function App() {
             'bg-blue-100 text-blue-800 border border-blue-200'
           }`}>
             {message.text}
+          </div>
+        )}
+
+        {/* Speed Change Notification */}
+        {speedChangeNotification && (
+          <div className="mb-6 p-3 bg-blue-100 text-blue-800 border border-blue-200 rounded-lg text-center animate-pulse">
+            {speedChangeNotification}
           </div>
         )}
 
@@ -494,6 +567,79 @@ function App() {
             </div>
           </div>
           
+          {/* Audio Speed Control */}
+          <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <h3 className="text-lg font-semibold mb-3 flex items-center">
+              <span className="mr-2">⚡</span>
+              Audio Speed Control
+            </h3>
+            <div className="flex items-center space-x-4">
+              <label htmlFor="speed-slider" className="text-sm font-medium text-gray-700 min-w-[80px]">
+                Speed: {audioSpeed}x
+              </label>
+              <input
+                id="speed-slider"
+                type="range"
+                min="0.5"
+                max="2.0"
+                step="0.1"
+                value={audioSpeed}
+                onChange={(e) => {
+                  const newSpeed = parseFloat(e.target.value);
+                  setAudioSpeed(newSpeed);
+                  showSpeedNotification(newSpeed);
+                }}
+                className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+              />
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => {
+                    setAudioSpeed(0.5);
+                    showSpeedNotification(0.5);
+                  }}
+                  className="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                >
+                  0.5x
+                </button>
+                <button
+                  onClick={() => {
+                    setAudioSpeed(1.0);
+                    showSpeedNotification(1.0);
+                  }}
+                  className="px-3 py-1 text-xs bg-blue-200 text-blue-700 rounded hover:bg-blue-300 transition-colors"
+                >
+                  1.0x
+                </button>
+                <button
+                  onClick={() => {
+                    setAudioSpeed(1.5);
+                    showSpeedNotification(1.5);
+                  }}
+                  className="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                >
+                  1.5x
+                </button>
+                <button
+                  onClick={() => {
+                    setAudioSpeed(2.0);
+                    showSpeedNotification(2.0);
+                  }}
+                  className="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                >
+                  2.0x
+                </button>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Adjust the speed of audio playback. Lower speeds (0.5x-0.8x) are great for learning pronunciation, 
+              while higher speeds (1.2x-2.0x) help with quick review.
+            </p>
+            <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
+              <strong>⌨️ Keyboard Shortcuts:</strong> 
+              Ctrl/Cmd + 1 (1.0x), Ctrl/Cmd + 2 (2.0x), Ctrl/Cmd + 3 (0.5x), Ctrl/Cmd + 4 (1.5x)
+            </div>
+          </div>
+          
           <p className="text-gray-600 mb-4">
             Test Google Cloud TTS before uploading files
           </p>
@@ -553,6 +699,14 @@ function App() {
                         ⏹️ Stop
                       </button>
                     )}
+                  </div>
+                  <div className="mt-2 text-xs text-gray-500 flex items-center justify-between">
+                    <span>Speed: {audioSpeed}x</span>
+                    <span className="text-blue-600">
+                      {audioSpeed < 0.8 ? '🐌 Slow' : 
+                       audioSpeed < 1.2 ? '🚶 Normal' : 
+                       audioSpeed < 1.5 ? '🏃 Fast' : '⚡ Very Fast'}
+                    </span>
                   </div>
                 </div>
               ))}

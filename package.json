@@ -2,6 +2,7 @@
   "name": "german-speller-react",
   "version": "0.1.0",
   "private": true,
+  "homepage": "https://astromar96.github.io/german-speller",
   "dependencies": {
     "clsx": "^2.0.0",
     "react": "^18.2.0",
