@@ -24,6 +24,12 @@ function App() {
   // Embedded Google Cloud API key
   const GOOGLE_CLOUD_API_KEY = 'AIzaSyCsx1IyPxscQ1YpPOGEHSBRQBQPvFjog7k';
 
+  // Check if debug mode is enabled via query parameter
+  const isDebugMode = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('debug') === 'true' || urlParams.get('test') === 'true';
+  };
+
   // Save speed to localStorage whenever it changes
   React.useEffect(() => {
     localStorage.setItem('audioSpeed', audioSpeed.toString());
@@ -661,7 +667,7 @@ function App() {
             💡 Use keyboard shortcuts: Ctrl/Cmd + 1 (1.0x), Ctrl/Cmd + 2 (2.0x), Ctrl/Cmd + 3 (0.5x), Ctrl/Cmd + 4 (1.5x)
           </div>
           
-          {audioTestResult && (
+          {audioTestResult && isDebugMode() && (
             <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
               <h4 className="font-semibold mb-2">Test Results:</h4>
               <pre className="text-sm text-gray-700 whitespace-pre-wrap">{audioTestResult}</pre>
@@ -758,6 +764,19 @@ function App() {
             <span className="text-gray-600">Current Audio Speed: </span>
             <span className="font-semibold text-blue-600">{audioSpeed}x</span>
           </div>
+          {isDebugMode() && (
+            <div className="mt-2 p-2 bg-yellow-100 border border-yellow-200 rounded-lg inline-block">
+              <span className="text-yellow-700">🐛 Debug Mode Active</span>
+              <span className="text-yellow-600 text-xs block mt-1">Test Results visible</span>
+            </div>
+          )}
+          {!isDebugMode() && (
+            <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-lg inline-block">
+              <span className="text-blue-700 text-xs">
+                💡 Add ?debug=true to URL to see test results
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </div>
