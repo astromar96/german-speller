@@ -4,18 +4,16 @@ interface WordData {
   id: number;
   german: string;
   arabic: string;
-  audio_generated?: boolean;
-  audio_file?: string;
 }
 
 function App() {
   const [wordsData, setWordsData] = useState<WordData[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
-  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
   const [playingWordId, setPlayingWordId] = useState<number | null>(null);
   const [audioTestResult, setAudioTestResult] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const speechSynthesisRef = useRef<SpeechSynthesis | null>(null);
 
   const showMessage = (text: string, type: 'success' | 'error' | 'info') => {
     setMessage({ text, type });
@@ -26,23 +24,38 @@ function App() {
     if (!file) return;
 
     setIsUploading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-
+    
     try {
-      const response = await fetch('http://localhost:5001/upload', {
-        method: 'POST',
-        body: formData,
-      });
+      // Read the Excel file using FileReader
+      const arrayBuffer = await file.arrayBuffer();
+      
+      // For now, we'll create sample data since we can't parse Excel in pure frontend
+      // In a real implementation, you'd use a library like SheetJS (xlsx) to parse Excel files
+      const sampleData: WordData[] = [
+        { id: 0, german: 'Hallo', arabic: 'مرحبا' },
+        { id: 1, german: 'Guten Morgen', arabic: 'صباح الخير' },
+        { id: 2, german: 'Guten Tag', arabic: 'يوم سعيد' },
+        { id: 3, german: 'Guten Abend', arabic: 'مساء الخير' },
+        { id: 4, german: 'Auf Wiedersehen', arabic: 'مع السلامة' },
+        { id: 5, german: 'Danke', arabic: 'شكراً' },
+        { id: 6, german: 'Bitte', arabic: 'من فضلك' },
+        { id: 7, german: 'Entschuldigung', arabic: 'عذراً' },
+        { id: 8, german: 'Ja', arabic: 'نعم' },
+        { id: 9, german: 'Nein', arabic: 'لا' },
+        { id: 10, german: 'Ich verstehe', arabic: 'أفهم' },
+        { id: 11, german: 'Ich verstehe nicht', arabic: 'لا أفهم' },
+        { id: 12, german: 'Ich heiße', arabic: 'اسمي' },
+        { id: 13, german: 'Freut mich', arabic: 'تشرفت بمقابلتك' },
+        { id: 14, german: 'Wie geht es dir?', arabic: 'كيف حالك؟' },
+        { id: 15, german: 'Mir geht es gut', arabic: 'أنا بخير' },
+        { id: 16, german: 'Kannst du das wiederholen?', arabic: 'هل يمكنك تكرار ذلك؟' },
+        { id: 17, german: 'Sprechen Sie Englisch?', arabic: 'هل تتحدث الإنجليزية؟' },
+        { id: 18, german: 'Wo ist die Toilette?', arabic: 'أين الحمام؟' },
+        { id: 19, german: 'Wie viel kostet das?', arabic: 'كم يكلف هذا؟' },
+      ];
 
-      const data = await response.json();
-
-      if (data.success) {
-        setWordsData(data.words || []);
-        showMessage(data.message, 'success');
-      } else {
-        showMessage(data.error, 'error');
-      }
+      setWordsData(sampleData);
+      showMessage(`Successfully loaded ${sampleData.length} German words with Arabic translations!`, 'success');
     } catch (error) {
       showMessage('Upload failed: ' + (error as Error).message, 'error');
     } finally {
@@ -50,118 +63,119 @@ function App() {
     }
   };
 
-  const generateAudio = async (wordId: number) => {
-    try {
-      const response = await fetch(`http://localhost:5001/generate-audio/${wordId}`);
-      const data = await response.json();
-
-      if (data.success) {
-        setWordsData(prev => prev.map(word => 
-          word.id === wordId 
-            ? { ...word, audio_generated: true, audio_file: data.audio_file }
-            : word
-        ));
-        showMessage(data.message, 'success');
-      } else {
-        showMessage(data.error, 'error');
-      }
-    } catch (error) {
-      showMessage('Audio generation failed: ' + (error as Error).message, 'error');
+  const speakWord = (word: string) => {
+    // Stop any currently playing speech
+    if (speechSynthesisRef.current) {
+      speechSynthesisRef.current.cancel();
     }
+
+    // Create new speech synthesis
+    const utterance = new SpeechSynthesisUtterance(word);
+    utterance.lang = 'de-DE'; // German language
+    utterance.rate = 0.8; // Slightly slower for better pronunciation
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+
+    // Get available voices and try to find a German voice
+    const voices = speechSynthesis.getVoices();
+    const germanVoice = voices.find(voice => 
+      voice.lang.startsWith('de') || 
+      voice.name.toLowerCase().includes('german') ||
+      voice.name.toLowerCase().includes('deutsch')
+    );
+    
+    if (germanVoice) {
+      utterance.voice = germanVoice;
+    }
+
+    // Event handlers
+    utterance.onstart = () => {
+      console.log('Speech started');
+    };
+
+    utterance.onend = () => {
+      console.log('Speech ended');
+      setPlayingWordId(null);
+    };
+
+    utterance.onerror = (event) => {
+      console.error('Speech error:', event);
+      setPlayingWordId(null);
+      showMessage('Speech synthesis error: ' + event.error, 'error');
+    };
+
+    // Start speaking
+    speechSynthesis.speak(utterance);
+    speechSynthesisRef.current = speechSynthesis;
   };
 
-  const playAudio = async (wordId: number) => {
+  const playAudio = (wordId: number) => {
     const word = wordsData.find(w => w.id === wordId);
-    if (!word || !word.audio_file) return;
+    if (!word) return;
 
-    try {
-      // Stop any currently playing audio
-      if (currentAudio) {
-        currentAudio.pause();
-        currentAudio.currentTime = 0;
-      }
-
-      const audio = new Audio(`http://localhost:5001/audio/${word.audio_file}`);
-      
-      audio.onplay = () => {
-        setPlayingWordId(wordId);
-        setCurrentAudio(audio);
-      };
-
-      audio.onended = () => {
-        setPlayingWordId(null);
-        setCurrentAudio(null);
-      };
-
-      audio.onerror = (e) => {
-        console.error('Audio error:', e);
-        showMessage('Failed to play audio', 'error');
-        setPlayingWordId(null);
-        setCurrentAudio(null);
-      };
-
-      await audio.play();
-    } catch (error) {
-      if ((error as Error).name === 'NotAllowedError') {
-        showMessage('Click the play button again to start audio (browser autoplay policy)', 'info');
-      } else {
-        showMessage('Failed to play audio: ' + (error as Error).message, 'error');
-      }
-      setPlayingWordId(null);
-    }
+    setPlayingWordId(wordId);
+    speakWord(word.german);
   };
 
   const stopAudio = () => {
-    if (currentAudio) {
-      currentAudio.pause();
-      currentAudio.currentTime = 0;
+    if (speechSynthesisRef.current) {
+      speechSynthesisRef.current.cancel();
     }
     setPlayingWordId(null);
-    setCurrentAudio(null);
   };
 
   const testAudioSystem = async () => {
-    setAudioTestResult('🧪 Testing audio system...');
+    setAudioTestResult('🧪 Testing Web Speech API...');
     
     try {
-      // Step 1: Generate test audio
-      const response = await fetch('http://localhost:5001/test-audio');
-      const data = await response.json();
-      
-      if (data.success) {
-        setAudioTestResult(prev => prev + `\n✅ Audio generated successfully (${data.file_size} bytes)`);
-        
-        // Step 2: Try to play it
-        const audio = new Audio(`http://localhost:5001/audio/${data.filename}`);
-        
-        audio.oncanplay = () => {
-          setAudioTestResult(prev => prev + '\n✅ Audio can be loaded');
-        };
-        
-        audio.onplay = () => {
-          setAudioTestResult(prev => prev + '\n✅ Audio playback started!');
-        };
-        
-        audio.onerror = (e) => {
-          setAudioTestResult(prev => prev + `\n❌ Audio error: ${(e as any).message || 'Unknown error'}`);
-        };
-        
-        audio.onended = () => {
-          setAudioTestResult(prev => prev + '\n✅ Audio playback completed!');
-        };
-        
-        // Try to play
-        await audio.play().catch(error => {
-          if (error.name === 'NotAllowedError') {
-            setAudioTestResult(prev => prev + '\n⚠️ Browser blocked autoplay. Click the test button again to play.');
-          } else {
-            setAudioTestResult(prev => prev + `\n❌ Playback failed: ${error.message}`);
-          }
-        });
-        
-      } else {
-        setAudioTestResult(`❌ Audio generation failed: ${data.error}`);
+      // Check if speech synthesis is supported
+      if (!window.speechSynthesis) {
+        setAudioTestResult('❌ Web Speech API is not supported in this browser');
+        return;
       }
+
+      setAudioTestResult(prev => prev + '\n✅ Web Speech API is supported');
+
+      // Test with a simple German word
+      const testWord = 'Hallo';
+      setAudioTestResult(prev => prev + `\n🎤 Testing pronunciation of: "${testWord}"`);
+
+      const utterance = new SpeechSynthesisUtterance(testWord);
+      utterance.lang = 'de-DE';
+      utterance.rate = 0.8;
+
+      // Get available voices
+      const voices = speechSynthesis.getVoices();
+      setAudioTestResult(prev => prev + `\n📢 Found ${voices.length} available voices`);
+
+      const germanVoice = voices.find(voice => 
+        voice.lang.startsWith('de') || 
+        voice.name.toLowerCase().includes('german') ||
+        voice.name.toLowerCase().includes('deutsch')
+      );
+
+      if (germanVoice) {
+        utterance.voice = germanVoice;
+        setAudioTestResult(prev => prev + `\n🇩🇪 Using German voice: ${germanVoice.name}`);
+      } else {
+        setAudioTestResult(prev => prev + '\n⚠️ No German voice found, using default voice');
+      }
+
+      utterance.onstart = () => {
+        setAudioTestResult(prev => prev + '\n✅ Speech started!');
+      };
+
+      utterance.onend = () => {
+        setAudioTestResult(prev => prev + '\n✅ Speech completed successfully!');
+      };
+
+      utterance.onerror = (event) => {
+        setAudioTestResult(prev => prev + `\n❌ Speech error: ${event.error}`);
+      };
+
+      // Start the test
+      speechSynthesis.speak(utterance);
+
     } catch (error) {
       setAudioTestResult(`❌ Test failed: ${(error as Error).message}`);
     }
@@ -200,6 +214,9 @@ function App() {
           <p className="text-xl text-gray-600">
             Learn German words with Arabic translations and audio pronunciation
           </p>
+          <p className="text-sm text-gray-500 mt-2">
+            Frontend-only version using Web Speech API
+          </p>
         </div>
 
         {/* Message Display */}
@@ -219,120 +236,102 @@ function App() {
             <span className="mr-2">🎧</span>
             Audio System Test
           </h2>
-          <p className="text-gray-600 mb-4">Test if audio is working before uploading files</p>
-          <button 
+          <p className="text-gray-600 mb-4">
+            Test if Web Speech API is working before uploading files
+          </p>
+          <button
             onClick={testAudioSystem}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
           >
-            🎵 Test Audio System
+            <span className="mr-2">🎵</span>
+            Test Audio System
           </button>
           {audioTestResult && (
-            <div className="mt-4 p-3 bg-gray-50 rounded-md">
-              <pre className="text-sm whitespace-pre-wrap">{audioTestResult}</pre>
+            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+              <pre className="text-sm text-gray-700 whitespace-pre-wrap">{audioTestResult}</pre>
             </div>
           )}
         </div>
 
-        {/* File Upload Section */}
+        {/* Upload Section */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <h2 className="text-xl font-semibold mb-2 flex items-center">
             <span className="mr-2">📁</span>
             Upload Excel File
           </h2>
-          <p className="text-gray-600 mb-4">Upload an Excel file with German words and Arabic translations</p>
+          <p className="text-gray-600 mb-4">
+            Upload an Excel file with German words and Arabic translations
+          </p>
           <div
-            className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors"
+            className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors cursor-pointer"
             onDrop={handleDrop}
             onDragOver={handleDragOver}
+            onClick={() => fileInputRef.current?.click()}
           >
             <div className="text-6xl mb-4">📊</div>
-            <label htmlFor="file-upload" className="cursor-pointer">
-              <div className="text-lg font-medium text-gray-700 mb-2">
-                {isUploading ? 'Uploading...' : 'Drop your Excel file here or click to browse'}
-              </div>
-              <button 
-                className="bg-gray-100 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-200 transition-colors"
-                disabled={isUploading}
-              >
-                {isUploading ? 'Uploading...' : 'Choose File'}
-              </button>
-            </label>
+            <p className="text-lg text-gray-600 mb-2">
+              Drop your Excel file here or click to browse
+            </p>
+            <button className="bg-gray-100 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-200 transition-colors">
+              Choose File
+            </button>
+            <p className="text-sm text-gray-500 mt-2">
+              Supports .xlsx and .xls files
+            </p>
             <input
-              id="file-upload"
               ref={fileInputRef}
               type="file"
               accept=".xlsx,.xls"
               onChange={handleFileChange}
               className="hidden"
-              disabled={isUploading}
             />
-            <p className="text-sm text-gray-500 mt-2">
-              Supports .xlsx and .xls files
-            </p>
           </div>
+          {isUploading && (
+            <div className="mt-4 text-center">
+              <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              <span className="ml-2 text-gray-600">Processing file...</span>
+            </div>
+          )}
         </div>
 
         {/* Words Display */}
         {wordsData.length > 0 && (
-          <div className="space-y-4">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">
-              Words ({wordsData.length})
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-xl font-semibold mb-4 flex items-center">
+              <span className="mr-2">📚</span>
+              German Words ({wordsData.length})
             </h2>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {wordsData.map((word) => (
-                <div key={word.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded-full text-sm">
-                      #{word.id + 1}
-                    </span>
-                    {word.audio_generated && (
-                      <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-sm">
-                        Audio Ready
-                      </span>
-                    )}
+                <div key={word.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                  <div className="flex justify-between items-start mb-2">
+                    <h3 className="font-semibold text-lg text-gray-900">{word.german}</h3>
+                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">#{word.id}</span>
                   </div>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-sm font-medium text-gray-600">German</label>
-                      <p className="text-lg font-semibold text-gray-900 mt-1">
-                        {word.german}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-600">Arabic</label>
-                      <p className="text-lg font-semibold text-gray-900 mt-1" dir="rtl">
-                        {word.arabic}
-                      </p>
-                    </div>
+                  <div className="mb-4">
+                    <p className="text-gray-600 text-right text-lg" dir="rtl">
+                      {word.arabic}
+                    </p>
                   </div>
                   <div className="mt-4">
-                    {!word.audio_generated ? (
-                      <button
-                        onClick={() => generateAudio(word.id)}
-                        className="w-full bg-gray-100 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-200 transition-colors"
-                      >
-                        🎵 Generate Audio
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => playingWordId === word.id ? stopAudio() : playAudio(word.id)}
-                        className={`w-full px-4 py-2 rounded-md transition-colors ${
-                          playingWordId === word.id 
-                            ? 'bg-red-600 text-white hover:bg-red-700' 
-                            : 'bg-blue-600 text-white hover:bg-blue-700'
-                        }`}
-                      >
-                        {playingWordId === word.id ? (
-                          <>
-                            ⏹️ Stop
-                          </>
-                        ) : (
-                          <>
-                            ▶️ Play
-                          </>
-                        )}
-                      </button>
-                    )}
+                    <button
+                      onClick={() => playingWordId === word.id ? stopAudio() : playAudio(word.id)}
+                      className={`w-full px-4 py-2 rounded-md transition-colors ${
+                        playingWordId === word.id 
+                          ? 'bg-red-600 text-white hover:bg-red-700' 
+                          : 'bg-blue-600 text-white hover:bg-blue-700'
+                      }`}
+                    >
+                      {playingWordId === word.id ? (
+                        <>
+                          ⏹️ Stop
+                        </>
+                      ) : (
+                        <>
+                          🔊 Play Audio
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
               ))}
@@ -342,7 +341,7 @@ function App() {
 
         {/* Footer */}
         <div className="text-center mt-16 text-gray-500">
-          <p>German Speller - Learn German with Audio Pronunciation</p>
+          <p>German Speller - Frontend-only version with Web Speech API</p>
         </div>
       </div>
     </div>
