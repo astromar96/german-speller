@@ -81,6 +81,11 @@ function App() {
 
   const speakWithGoogleTTS = async (word: string) => {
     try {
+      // Check if API key is provided
+      if (!apiKey || apiKey.trim() === '') {
+        throw new Error('Google Cloud API key is required');
+      }
+
       const response = await fetch('https://texttospeech.googleapis.com/v1/text:synthesize', {
         method: 'POST',
         headers: {
@@ -104,7 +109,17 @@ function App() {
       });
 
       if (!response.ok) {
-        throw new Error(`Google TTS API error: ${response.status}`);
+        const errorText = await response.text();
+        let errorMessage = `Google TTS API error: ${response.status}`;
+        
+        if (response.status === 401) {
+          errorMessage += ' - Authentication failed. Check your API key and ensure Text-to-Speech API is enabled.';
+        } else if (response.status === 403) {
+          errorMessage += ' - Access forbidden. Check API key permissions.';
+        }
+        
+        errorMessage += `\nResponse: ${errorText}`;
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -126,7 +141,7 @@ function App() {
       audio.play();
     } catch (error) {
       console.error('Google TTS error:', error);
-      showMessage('Google TTS failed, falling back to Web Speech API', 'error');
+      showMessage(`Google TTS failed: ${(error as Error).message}. Falling back to Web Speech API.`, 'error');
       speakWithWebSpeechAPI(word);
     }
   };
@@ -340,6 +355,13 @@ function App() {
     try {
       setAudioTestResult(prev => prev + '\n✅ Testing Google Cloud TTS API');
       
+      // Check if API key is provided
+      if (!apiKey || apiKey.trim() === '') {
+        throw new Error('API key is required. Please enter your Google Cloud API key.');
+      }
+      
+      setAudioTestResult(prev => prev + '\n🔑 API key provided (checking format...)');
+      
       const testWord = 'Hallo';
       setAudioTestResult(prev => prev + `\n🎤 Testing pronunciation of: "${testWord}"`);
       
@@ -366,7 +388,29 @@ function App() {
       });
 
       if (!response.ok) {
-        throw new Error(`API Error: ${response.status} - ${response.statusText}`);
+        const errorText = await response.text();
+        let errorMessage = `API Error: ${response.status} - ${response.statusText}`;
+        
+        // Provide specific guidance based on error code
+        if (response.status === 401) {
+          errorMessage += '\n\n🔍 401 Authentication Error - Possible causes:';
+          errorMessage += '\n• Invalid or expired API key';
+          errorMessage += '\n• API key format is incorrect';
+          errorMessage += '\n• Google Cloud Text-to-Speech API not enabled';
+          errorMessage += '\n• Billing not set up for your Google Cloud project';
+          errorMessage += '\n\n💡 Solutions:';
+          errorMessage += '\n1. Verify your API key is correct';
+          errorMessage += '\n2. Enable Text-to-Speech API in Google Cloud Console';
+          errorMessage += '\n3. Set up billing for your Google Cloud project';
+          errorMessage += '\n4. Check if your API key has the necessary permissions';
+        } else if (response.status === 403) {
+          errorMessage += '\n\n🔍 403 Forbidden - API key might not have Text-to-Speech permissions';
+        } else if (response.status === 400) {
+          errorMessage += '\n\n🔍 400 Bad Request - Check the request format';
+        }
+        
+        errorMessage += `\n\n📄 Response: ${errorText}`;
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
