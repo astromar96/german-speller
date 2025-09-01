@@ -363,6 +363,10 @@ function App() {
       setAudioTestResult(prev => prev + '\n✅ Google Cloud TTS API connected successfully');
       setAudioTestResult(prev => prev + '\n🌟 Using premium German neural voice: de-DE-Neural2-A (Female)');
       setAudioTestResult(prev => prev + `\n⚡ Audio speed set to: ${audioSpeed}x`);
+      setAudioTestResult(prev => prev + `\n🎯 Speed description: ${audioSpeed < 0.8 ? '🐌 Slow (Great for learning pronunciation)' : 
+       audioSpeed < 1.2 ? '🚶 Normal (playback speed)' : 
+       audioSpeed < 1.5 ? '🏃 Fast (review)' : '⚡ Very Fast (review)'}`);
+      setAudioTestResult(prev => prev + '\n💡 Tip: Adjust the speed control above to test different playback speeds');
       
       // Play the audio
       const audioContent = data.audioContent;
@@ -426,6 +430,10 @@ function App() {
       utterance.onstart = () => {
         setAudioTestResult(prev => prev + '\n🎵 Web Speech API audio started...');
         setAudioTestResult(prev => prev + `\n⚡ Audio speed set to: ${audioSpeed}x`);
+        setAudioTestResult(prev => prev + `\n🎯 Speed description: ${audioSpeed < 0.8 ? '🐌 Slow (Great for learning pronunciation)' : 
+         audioSpeed < 1.2 ? '🚶 Normal (playback speed)' : 
+         audioSpeed < 1.5 ? '🏃 Fast (review)' : '⚡ Very Fast (review)'}`);
+        setAudioTestResult(prev => prev + `\n📚 Speed Guide: 0.5x-0.8x (Learning) • 1.0x (Normal) • 1.2x-1.5x (Review) • 1.5x-2.0x (Fast Review)`);
       };
       
       utterance.onend = () => {
@@ -474,10 +482,10 @@ function App() {
             Learn German words with Arabic translations and premium audio pronunciation
           </p>
           {/* Speed Indicator */}
-          <div className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-full">
+          <div className="inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-full shadow-sm">
             <span className="text-sm font-medium text-blue-800">⚡ Audio Speed:</span>
             <span className="text-lg font-bold text-blue-600">{audioSpeed}x</span>
-            <span className="text-xs text-blue-600">
+            <span className="text-xs text-blue-600 bg-white px-2 py-1 rounded-full">
               {audioSpeed < 0.8 ? '🐌 Slow' : 
                audioSpeed < 1.2 ? '🚶 Normal' : 
                audioSpeed < 1.5 ? '🏃 Fast' : '⚡ Very Fast'}
@@ -514,6 +522,17 @@ function App() {
             <p className="text-sm text-blue-800">
               📋 <strong>Supported formats:</strong> Excel files (.xlsx, .xls) with German words and Arabic translations
             </p>
+            <p className="text-sm text-blue-800 mt-2">
+              ⚡ <strong>Audio Speed:</strong> {audioSpeed}x - {audioSpeed < 0.8 ? '🐌 Slow (Great for learning pronunciation)' : 
+               audioSpeed < 1.2 ? '🚶 Normal (Standard playback speed)' : 
+               audioSpeed < 1.5 ? '🏃 Fast (Quick review)' : '⚡ Very Fast (Rapid review)'}
+            </p>
+            <p className="text-xs text-blue-700 mt-1">
+              💡 All uploaded words will be pronounced at the selected speed for consistent learning experience.
+            </p>
+            <div className="mt-2 p-2 bg-blue-100 border border-blue-200 rounded text-xs text-blue-800">
+              <strong>🎯 Speed Guide:</strong> 0.5x-0.8x (Learning) • 1.0x (Normal) • 1.2x-1.5x (Review) • 1.5x-2.0x (Fast Review)
+            </div>
           </div>
           
           <div
@@ -528,6 +547,14 @@ function App() {
             </p>
             <p className="text-sm text-gray-500">
               {isUploading ? 'Please wait...' : 'Supports .xlsx and .xls files'}
+            </p>
+            <p className="text-xs text-blue-600 mt-2">
+              ⚡ Audio will play at {audioSpeed}x speed
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              {audioSpeed < 0.8 ? '🐌 Slow speed - Perfect for learning pronunciation' : 
+               audioSpeed < 1.2 ? '🚶 Normal speed - Standard playback' : 
+               audioSpeed < 1.5 ? '🏃 Fast speed - Quick review' : '⚡ Very fast - Rapid review'}
             </p>
             <input
               ref={fileInputRef}
@@ -563,6 +590,13 @@ function App() {
                 <p><strong>Voice:</strong> de-DE-Neural2-A (High-quality German female voice)</p>
                 <p><strong>Cost:</strong> Free tier: 4 million characters/month, then ~$4/million characters</p>
                 <p><strong>Fallback:</strong> Automatically falls back to Web Speech API if needed</p>
+              </div>
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded">
+                <p className="text-sm text-blue-800">
+                  <strong>Current Speed:</strong> {audioSpeed}x - {audioSpeed < 0.8 ? '🐌 Slow (Great for learning pronunciation)' : 
+                   audioSpeed < 1.2 ? '🚶 Normal (Standard playback speed)' : 
+                   audioSpeed < 1.5 ? '🏃 Fast (Quick review)' : '⚡ Very Fast (Rapid review)'}
+                </p>
               </div>
             </div>
           </div>
@@ -643,13 +677,35 @@ function App() {
           <p className="text-gray-600 mb-4">
             Test Google Cloud TTS before uploading files
           </p>
+          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+            <p className="text-sm text-green-800">
+              ⚡ <strong>Test Audio Speed:</strong> {audioSpeed}x - {audioSpeed < 0.8 ? '🐌 Slow (Great for learning pronunciation)' : 
+               audioSpeed < 1.2 ? '🚶 Normal (Standard playback speed)' : 
+               audioSpeed < 1.5 ? '🏃 Fast (Quick review)' : '⚡ Very Fast (Rapid review)'}
+            </p>
+            <p className="text-xs text-green-700 mt-1">
+              💡 Test the audio system with the current speed setting. Adjust the speed control above to hear different playback speeds.
+            </p>
+            <div className="mt-2 p-2 bg-green-100 border border-green-200 rounded text-xs text-green-800">
+              <strong>🎯 Speed Guide:</strong> 0.5x-0.8x (Learning) • 1.0x (Normal) • 1.2x-1.5x (Review) • 1.5x-2.0x (Fast Review)
+            </div>
+          </div>
           <button
             onClick={testAudioSystem}
             className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
           >
             <span className="mr-2">🎵</span>
             Test Audio System
+            <span className="ml-2 px-2 py-1 bg-blue-500 text-white text-xs rounded-full">
+              {audioSpeed}x
+            </span>
           </button>
+          <div className="mt-2 text-xs text-gray-600 text-center">
+            💡 Adjust the speed control above to test different playback speeds
+          </div>
+          <div className="mt-2 text-xs text-blue-600 text-center font-medium">
+            🎯 Current test speed: {audioSpeed}x
+          </div>
           
           {audioTestResult && (
             <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
@@ -666,6 +722,19 @@ function App() {
               <span className="mr-2">📚</span>
               German Words ({wordsData.length})
             </h2>
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>🎯 Audio Speed:</strong> {audioSpeed}x - {audioSpeed < 0.8 ? '🐌 Slow (Great for learning pronunciation)' : 
+                 audioSpeed < 1.2 ? '🚶 Normal (Standard playback speed)' : 
+                 audioSpeed < 1.5 ? '🏃 Fast (Quick review)' : '⚡ Very Fast (Rapid review)'}
+              </p>
+              <p className="text-xs text-blue-700 mt-1">
+                💡 Each word will be pronounced at the selected speed. Lower speeds are great for learning, higher speeds for quick review.
+              </p>
+              <div className="mt-2 p-2 bg-blue-100 border border-blue-200 rounded text-xs text-blue-800">
+                <strong>🎯 Speed Guide:</strong> 0.5x-0.8x (Learning) • 1.0x (Normal) • 1.2x-1.5x (Review) • 1.5x-2.0x (Fast Review)
+              </div>
+            </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {wordsData.map((word) => (
@@ -690,6 +759,9 @@ function App() {
                       }`}
                     >
                       {playingWordId === word.id ? '🔊 Playing...' : '🔊 Play Audio'}
+                      <span className="ml-2 px-2 py-1 bg-blue-500 text-white text-xs rounded-full">
+                        {audioSpeed}x
+                      </span>
                     </button>
                     {playingWordId === word.id && (
                       <button
@@ -701,8 +773,15 @@ function App() {
                     )}
                   </div>
                   <div className="mt-2 text-xs text-gray-500 flex items-center justify-between">
-                    <span>Speed: {audioSpeed}x</span>
-                    <span className="text-blue-600">
+                    <span className="flex items-center">
+                      <span className="mr-1">⚡</span>
+                      Speed: {audioSpeed}x
+                    </span>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      audioSpeed < 0.8 ? 'bg-yellow-100 text-yellow-700' : 
+                      audioSpeed < 1.2 ? 'bg-green-100 text-green-700' : 
+                      audioSpeed < 1.5 ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                    }`}>
                       {audioSpeed < 0.8 ? '🐌 Slow' : 
                        audioSpeed < 1.2 ? '🚶 Normal' : 
                        audioSpeed < 1.5 ? '🏃 Fast' : '⚡ Very Fast'}
@@ -718,6 +797,10 @@ function App() {
         <div className="text-center text-gray-500 text-sm">
           <p>Built with React, TypeScript, and Google Cloud TTS</p>
           <p className="mt-1">Premium German pronunciation powered by Google Cloud</p>
+          <div className="mt-2 p-2 bg-gray-100 rounded-lg inline-block">
+            <span className="text-gray-600">Current Audio Speed: </span>
+            <span className="font-semibold text-blue-600">{audioSpeed}x</span>
+          </div>
         </div>
       </div>
     </div>
