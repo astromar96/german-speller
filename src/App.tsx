@@ -367,6 +367,7 @@ function App() {
        audioSpeed < 1.2 ? '🚶 Normal (playback speed)' : 
        audioSpeed < 1.5 ? '🏃 Fast (review)' : '⚡ Very Fast (review)'}`);
       setAudioTestResult(prev => prev + '\n💡 Tip: Adjust the speed control above to test different playback speeds');
+      setAudioTestResult(prev => prev + `\n📚 Speed Guide: 0.5x-0.8x (Learning) • 1.0x (Normal) • 1.2x-1.5x (Review) • 1.5x-2.0x (Fast Review)`);
       
       // Play the audio
       const audioContent = data.audioContent;
@@ -530,9 +531,12 @@ function App() {
             <p className="text-xs text-blue-700 mt-1">
               💡 All uploaded words will be pronounced at the selected speed for consistent learning experience.
             </p>
-            <div className="mt-2 p-2 bg-blue-100 border border-blue-200 rounded text-xs text-blue-800">
-              <strong>🎯 Speed Guide:</strong> 0.5x-0.8x (Learning) • 1.0x (Normal) • 1.2x-1.5x (Review) • 1.5x-2.0x (Fast Review)
-            </div>
+                                                      <div className="mt-2 p-2 bg-blue-100 border border-blue-200 rounded text-xs text-blue-800">
+                <strong>🎯 Speed Guide:</strong> 0.5x-0.8x (Learning) • 1.0x (Normal) • 1.2x-1.5x (Review) • 1.5x-2.0x (Fast Review)
+              </div>
+              <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
+                <strong>⌨️ Keyboard Shortcuts:</strong> Ctrl/Cmd + 1 (1.0x), Ctrl/Cmd + 2 (2.0x), Ctrl/Cmd + 3 (0.5x), Ctrl/Cmd + 4 (1.5x)
+              </div>
           </div>
           
           <div
@@ -706,6 +710,9 @@ function App() {
           <div className="mt-2 text-xs text-blue-600 text-center font-medium">
             🎯 Current test speed: {audioSpeed}x
           </div>
+          <div className="mt-2 text-xs text-gray-500 text-center">
+            💡 Use keyboard shortcuts: Ctrl/Cmd + 1 (1.0x), Ctrl/Cmd + 2 (2.0x), Ctrl/Cmd + 3 (0.5x), Ctrl/Cmd + 4 (1.5x)
+          </div>
           
           {audioTestResult && (
             <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
@@ -733,6 +740,9 @@ function App() {
               </p>
               <div className="mt-2 p-2 bg-blue-100 border border-blue-200 rounded text-xs text-blue-800">
                 <strong>🎯 Speed Guide:</strong> 0.5x-0.8x (Learning) • 1.0x (Normal) • 1.2x-1.5x (Review) • 1.5x-2.0x (Fast Review)
+              </div>
+              <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
+                <strong>⌨️ Keyboard Shortcuts:</strong> Ctrl/Cmd + 1 (1.0x), Ctrl/Cmd + 2 (2.0x), Ctrl/Cmd + 3 (0.5x), Ctrl/Cmd + 4 (1.5x)
               </div>
             </div>
             
