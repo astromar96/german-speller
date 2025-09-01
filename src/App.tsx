@@ -133,28 +133,76 @@ function App() {
 
   const speakWithVoiceRSS = async (word: string) => {
     try {
-      const response = await fetch(`https://api.voicerss.org/?key=${freeApiKey}&hl=de-de&src=${encodeURIComponent(word)}&c=MP3&f=44khz_16bit_stereo`);
+      // Set playing state immediately
+      setPlayingWordId(wordsData.find(w => w.german === word)?.id || null);
+      
+      const response = await fetch(`https://api.voicerss.org/?key=${freeApiKey}&hl=de-de&src=${encodeURIComponent(word)}&c=MP3&f=44khz_16bit_stereo&r=0`);
+      
       if (!response.ok) {
-        throw new Error(`VoiceRSS API error: ${response.status}`);
+        throw new Error(`VoiceRSS API error: ${response.status} - ${response.statusText}`);
       }
+      
+      // Check if response is actually audio
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('audio')) {
+        const errorText = await response.text();
+        throw new Error(`VoiceRSS returned non-audio response: ${errorText}`);
+      }
+      
       const audioBlob = await response.blob();
+      
+      // Verify blob is not empty
+      if (audioBlob.size === 0) {
+        throw new Error('VoiceRSS returned empty audio file');
+      }
+      
       const audioUrl = URL.createObjectURL(audioBlob);
       
-      const audio = new Audio(audioUrl);
+      const audio = new Audio();
+      
+      audio.oncanplay = () => {
+        console.log('VoiceRSS audio ready to play');
+      };
+      
+      audio.onplay = () => {
+        console.log('VoiceRSS audio started playing');
+      };
+      
       audio.onended = () => {
+        console.log('VoiceRSS audio ended');
         setPlayingWordId(null);
         URL.revokeObjectURL(audioUrl);
       };
-      audio.onerror = () => {
+      
+      audio.onerror = (e) => {
+        console.error('VoiceRSS audio error:', e);
         setPlayingWordId(null);
         showMessage('Failed to play VoiceRSS audio', 'error');
         URL.revokeObjectURL(audioUrl);
       };
       
-      audio.play();
+      audio.onloadstart = () => {
+        console.log('VoiceRSS audio loading started');
+      };
+      
+      audio.onloadeddata = () => {
+        console.log('VoiceRSS audio data loaded');
+      };
+      
+      // Set the source and play
+      audio.src = audioUrl;
+      
+      try {
+        await audio.play();
+      } catch (playError) {
+        console.error('Audio play error:', playError);
+        throw new Error(`Failed to play audio: ${playError}`);
+      }
+      
     } catch (error) {
       console.error('VoiceRSS error:', error);
-      showMessage('VoiceRSS failed, falling back to Web Speech API', 'error');
+      setPlayingWordId(null);
+      showMessage(`VoiceRSS failed: ${(error as Error).message}. Falling back to Web Speech API.`, 'error');
       speakWithWebSpeechAPI(word);
     }
   };
@@ -360,30 +408,67 @@ function App() {
       const testWord = 'Hallo';
       setAudioTestResult(prev => prev + `\n🎤 Testing pronunciation of: "${testWord}"`);
       
-      const response = await fetch(`https://api.voicerss.org/?key=${freeApiKey}&hl=de-de&src=${encodeURIComponent(testWord)}&c=MP3&f=44khz_16bit_stereo`);
+      const response = await fetch(`https://api.voicerss.org/?key=${freeApiKey}&hl=de-de&src=${encodeURIComponent(testWord)}&c=MP3&f=44khz_16bit_stereo&r=0`);
+      
       if (!response.ok) {
-        throw new Error(`API Error: ${response.status} - ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(`API Error: ${response.status} - ${response.statusText}\nResponse: ${errorText}`);
       }
+      
+      // Check content type
+      const contentType = response.headers.get('content-type');
+      setAudioTestResult(prev => prev + `\n📄 Response type: ${contentType}`);
+      
+      if (!contentType || !contentType.includes('audio')) {
+        const errorText = await response.text();
+        throw new Error(`VoiceRSS returned non-audio response: ${errorText}`);
+      }
+      
       const audioBlob = await response.blob();
+      setAudioTestResult(prev => prev + `\n📦 Audio blob size: ${audioBlob.size} bytes`);
+      
+      if (audioBlob.size === 0) {
+        throw new Error('VoiceRSS returned empty audio file');
+      }
+      
       const audioUrl = URL.createObjectURL(audioBlob);
       
-      const audio = new Audio(audioUrl);
+      const audio = new Audio();
+      
       audio.oncanplay = () => {
         setAudioTestResult(prev => prev + '\n✅ Audio generated and ready to play');
       };
+      
       audio.onplay = () => {
         setAudioTestResult(prev => prev + '\n🎵 Playing VoiceRSS audio...');
       };
+      
       audio.onended = () => {
         setAudioTestResult(prev => prev + '\n✅ VoiceRSS audio playback completed!');
         URL.revokeObjectURL(audioUrl);
       };
-      audio.onerror = () => {
-        setAudioTestResult(prev => prev + '\n❌ Failed to play VoiceRSS audio');
+      
+      audio.onerror = (e) => {
+        setAudioTestResult(prev => prev + `\n❌ Failed to play VoiceRSS audio: ${e}`);
         URL.revokeObjectURL(audioUrl);
       };
       
-      await audio.play();
+      audio.onloadstart = () => {
+        setAudioTestResult(prev => prev + '\n🔄 Audio loading started...');
+      };
+      
+      audio.onloadeddata = () => {
+        setAudioTestResult(prev => prev + '\n📥 Audio data loaded successfully');
+      };
+      
+      // Set source and play
+      audio.src = audioUrl;
+      
+      try {
+        await audio.play();
+      } catch (playError) {
+        throw new Error(`Failed to play audio: ${playError}`);
+      }
       
     } catch (error) {
       setAudioTestResult(`❌ VoiceRSS test failed: ${(error as Error).message}`);
@@ -587,6 +672,11 @@ function App() {
               <span className="mr-2">🌟</span>
               Free Voice Quality
             </h3>
+            <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+              <p className="text-sm text-yellow-800">
+                🎯 <strong>Demo Mode:</strong> Try the app without any API keys! Just use Web Speech API for instant testing.
+              </p>
+            </div>
             <div className="space-y-3">
               <div className="flex items-center">
                 <input
@@ -619,10 +709,13 @@ function App() {
                 </div>
               )}
               
-              <div className="text-sm text-gray-600">
-                <p><strong>Web Speech API:</strong> Free, basic quality, works offline</p>
-                <p><strong>VoiceRSS:</strong> Free, requires API key, works globally, limited to 1000 characters/day</p>
-              </div>
+                             <div className="text-sm text-gray-600">
+                 <p><strong>Web Speech API:</strong> Free, basic quality, works offline</p>
+                 <p><strong>VoiceRSS:</strong> Free, requires API key, works globally, limited to 350 requests/day</p>
+                 <p className="text-xs text-gray-500 mt-1">
+                   💡 <strong>Tip:</strong> If you don't have a VoiceRSS API key, the app will automatically use Web Speech API
+                 </p>
+               </div>
             </div>
           </div>
           
