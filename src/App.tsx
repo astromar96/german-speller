@@ -12,6 +12,8 @@ function App() {
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [playingWordId, setPlayingWordId] = useState<number | null>(null);
   const [audioTestResult, setAudioTestResult] = useState<string>('');
+  const [usePremiumAPI, setUsePremiumAPI] = useState(false);
+  const [apiKey, setApiKey] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const speechSynthesisRef = useRef<SpeechSynthesis | null>(null);
 
@@ -26,9 +28,6 @@ function App() {
     setIsUploading(true);
     
     try {
-      // Read the Excel file using FileReader
-      const arrayBuffer = await file.arrayBuffer();
-      
       // For now, we'll create sample data since we can't parse Excel in pure frontend
       // In a real implementation, you'd use a library like SheetJS (xlsx) to parse Excel files
       const sampleData: WordData[] = [
@@ -69,28 +68,148 @@ function App() {
       speechSynthesisRef.current.cancel();
     }
 
+    if (usePremiumAPI && apiKey) {
+      speakWithGoogleTTS(word);
+    } else {
+      speakWithWebSpeechAPI(word);
+    }
+  };
+
+  const speakWithGoogleTTS = async (word: string) => {
+    try {
+      const response = await fetch('https://texttospeech.googleapis.com/v1/text:synthesize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          input: { text: word },
+          voice: {
+            languageCode: 'de-DE',
+            name: 'de-DE-Neural2-B', // High-quality German voice
+            ssmlGender: 'FEMALE'
+          },
+          audioConfig: {
+            audioEncoding: 'MP3',
+            speakingRate: 0.8,
+            pitch: 0,
+            volumeGainDb: 0
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Google TTS API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const audioContent = data.audioContent;
+      const audioBlob = new Blob([Uint8Array.from(atob(audioContent), c => c.charCodeAt(0))], { type: 'audio/mp3' });
+      const audioUrl = URL.createObjectURL(audioBlob);
+      
+      const audio = new Audio(audioUrl);
+      audio.onended = () => {
+        setPlayingWordId(null);
+        URL.revokeObjectURL(audioUrl);
+      };
+      audio.onerror = () => {
+        setPlayingWordId(null);
+        showMessage('Failed to play Google TTS audio', 'error');
+        URL.revokeObjectURL(audioUrl);
+      };
+      
+      audio.play();
+    } catch (error) {
+      console.error('Google TTS error:', error);
+      showMessage('Google TTS failed, falling back to Web Speech API', 'error');
+      speakWithWebSpeechAPI(word);
+    }
+  };
+
+  const speakWithWebSpeechAPI = (word: string) => {
     // Create new speech synthesis
     const utterance = new SpeechSynthesisUtterance(word);
     utterance.lang = 'de-DE'; // German language
-    utterance.rate = 0.8; // Slightly slower for better pronunciation
+    utterance.rate = 0.7; // Slower for better pronunciation
     utterance.pitch = 1.0;
     utterance.volume = 1.0;
 
-    // Get available voices and try to find a German voice
+    // Get available voices and prioritize high-quality German voices
     const voices = speechSynthesis.getVoices();
-    const germanVoice = voices.find(voice => 
-      voice.lang.startsWith('de') || 
-      voice.name.toLowerCase().includes('german') ||
-      voice.name.toLowerCase().includes('deutsch')
-    );
     
-    if (germanVoice) {
-      utterance.voice = germanVoice;
+    // Priority order for German voices (higher quality first)
+    const germanVoicePriorities = [
+      // Premium/high-quality voices
+      (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('premium'),
+      (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('enhanced'),
+      (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('natural'),
+      (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('neural'),
+      // Specific German voices
+      (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('anna') && voice.lang.startsWith('de'),
+      (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('helena') && voice.lang.startsWith('de'),
+      (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('petra') && voice.lang.startsWith('de'),
+      (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('yannick') && voice.lang.startsWith('de'),
+      // General German voices
+      (voice: SpeechSynthesisVoice) => voice.lang === 'de-DE',
+      (voice: SpeechSynthesisVoice) => voice.lang === 'de-AT',
+      (voice: SpeechSynthesisVoice) => voice.lang === 'de-CH',
+      (voice: SpeechSynthesisVoice) => voice.lang.startsWith('de'),
+      // Fallback to any voice with "german" in name
+      (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('german'),
+      (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('deutsch'),
+    ];
+
+    let selectedVoice = null;
+    
+    // Try to find the best available German voice
+    for (const priorityCheck of germanVoicePriorities) {
+      selectedVoice = voices.find(priorityCheck);
+      if (selectedVoice) {
+        console.log(`Selected voice: ${selectedVoice.name} (${selectedVoice.lang})`);
+        break;
+      }
+    }
+
+    // If no German voice found, try to find a high-quality English voice as fallback
+    if (!selectedVoice) {
+      const englishVoicePriorities = [
+        (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('premium') && voice.lang.startsWith('en'),
+        (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('enhanced') && voice.lang.startsWith('en'),
+        (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('natural') && voice.lang.startsWith('en'),
+        (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('neural') && voice.lang.startsWith('en'),
+        (voice: SpeechSynthesisVoice) => voice.lang === 'en-US',
+        (voice: SpeechSynthesisVoice) => voice.lang === 'en-GB',
+      ];
+
+      for (const priorityCheck of englishVoicePriorities) {
+        selectedVoice = voices.find(priorityCheck);
+        if (selectedVoice) {
+          console.log(`Fallback to English voice: ${selectedVoice.name} (${selectedVoice.lang})`);
+          break;
+        }
+      }
+    }
+
+    // If still no voice found, use the first available voice
+    if (!selectedVoice && voices.length > 0) {
+      selectedVoice = voices[0];
+      console.log(`Using default voice: ${selectedVoice.name} (${selectedVoice.lang})`);
+    }
+    
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+      // Adjust settings based on voice quality
+      if (selectedVoice.name.toLowerCase().includes('premium') || 
+          selectedVoice.name.toLowerCase().includes('enhanced') ||
+          selectedVoice.name.toLowerCase().includes('neural')) {
+        utterance.rate = 0.8; // Slightly faster for premium voices
+      }
     }
 
     // Event handlers
     utterance.onstart = () => {
-      console.log('Speech started');
+      console.log('Speech started with voice:', utterance.voice?.name);
     };
 
     utterance.onend = () => {
@@ -125,8 +244,81 @@ function App() {
   };
 
   const testAudioSystem = async () => {
-    setAudioTestResult('🧪 Testing Web Speech API...');
-    
+    if (usePremiumAPI && apiKey) {
+      setAudioTestResult('🧪 Testing Google Cloud TTS...');
+      testGoogleTTS();
+    } else {
+      setAudioTestResult('🧪 Testing Web Speech API...');
+      testWebSpeechAPI();
+    }
+  };
+
+  const testGoogleTTS = async () => {
+    try {
+      setAudioTestResult(prev => prev + '\n✅ Testing Google Cloud TTS API');
+      
+      const testWord = 'Hallo';
+      setAudioTestResult(prev => prev + `\n🎤 Testing pronunciation of: "${testWord}"`);
+      
+      const response = await fetch('https://texttospeech.googleapis.com/v1/text:synthesize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          input: { text: testWord },
+          voice: {
+            languageCode: 'de-DE',
+            name: 'de-DE-Neural2-B',
+            ssmlGender: 'FEMALE'
+          },
+          audioConfig: {
+            audioEncoding: 'MP3',
+            speakingRate: 0.8,
+            pitch: 0,
+            volumeGainDb: 0
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status} - ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      setAudioTestResult(prev => prev + '\n✅ Google Cloud TTS API connected successfully');
+      setAudioTestResult(prev => prev + '\n🌟 Using premium German neural voice: de-DE-Neural2-B');
+      
+      // Play the audio
+      const audioContent = data.audioContent;
+      const audioBlob = new Blob([Uint8Array.from(atob(audioContent), c => c.charCodeAt(0))], { type: 'audio/mp3' });
+      const audioUrl = URL.createObjectURL(audioBlob);
+      
+      const audio = new Audio(audioUrl);
+      audio.oncanplay = () => {
+        setAudioTestResult(prev => prev + '\n✅ Audio generated and ready to play');
+      };
+      audio.onplay = () => {
+        setAudioTestResult(prev => prev + '\n🎵 Playing premium quality audio...');
+      };
+      audio.onended = () => {
+        setAudioTestResult(prev => prev + '\n✅ Premium audio playback completed!');
+        URL.revokeObjectURL(audioUrl);
+      };
+      audio.onerror = () => {
+        setAudioTestResult(prev => prev + '\n❌ Failed to play premium audio');
+        URL.revokeObjectURL(audioUrl);
+      };
+      
+      await audio.play();
+      
+    } catch (error) {
+      setAudioTestResult(`❌ Google Cloud TTS test failed: ${(error as Error).message}`);
+    }
+  };
+
+  const testWebSpeechAPI = async () => {
     try {
       // Check if speech synthesis is supported
       if (!window.speechSynthesis) {
@@ -136,29 +328,64 @@ function App() {
 
       setAudioTestResult(prev => prev + '\n✅ Web Speech API is supported');
 
-      // Test with a simple German word
-      const testWord = 'Hallo';
-      setAudioTestResult(prev => prev + `\n🎤 Testing pronunciation of: "${testWord}"`);
-
-      const utterance = new SpeechSynthesisUtterance(testWord);
-      utterance.lang = 'de-DE';
-      utterance.rate = 0.8;
-
       // Get available voices
       const voices = speechSynthesis.getVoices();
       setAudioTestResult(prev => prev + `\n📢 Found ${voices.length} available voices`);
 
-      const germanVoice = voices.find(voice => 
-        voice.lang.startsWith('de') || 
-        voice.name.toLowerCase().includes('german') ||
-        voice.name.toLowerCase().includes('deutsch')
-      );
+      // Show all available voices for debugging
+      setAudioTestResult(prev => prev + '\n\n🎭 Available voices:');
+      voices.forEach((voice, index) => {
+        const quality = voice.name.toLowerCase().includes('premium') || 
+                       voice.name.toLowerCase().includes('enhanced') || 
+                       voice.name.toLowerCase().includes('neural') ? '🌟' : '📻';
+        setAudioTestResult(prev => prev + `\n${quality} ${voice.name} (${voice.lang})`);
+      });
 
-      if (germanVoice) {
-        utterance.voice = germanVoice;
-        setAudioTestResult(prev => prev + `\n🇩🇪 Using German voice: ${germanVoice.name}`);
-      } else {
-        setAudioTestResult(prev => prev + '\n⚠️ No German voice found, using default voice');
+      // Test with a simple German word
+      const testWord = 'Hallo';
+      setAudioTestResult(prev => prev + `\n\n🎤 Testing pronunciation of: "${testWord}"`);
+
+      const utterance = new SpeechSynthesisUtterance(testWord);
+      utterance.lang = 'de-DE';
+      utterance.rate = 0.7;
+
+      // Use the same voice selection logic as the main function
+      const germanVoicePriorities = [
+        (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('premium'),
+        (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('enhanced'),
+        (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('natural'),
+        (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('neural'),
+        (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('anna') && voice.lang.startsWith('de'),
+        (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('helena') && voice.lang.startsWith('de'),
+        (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('petra') && voice.lang.startsWith('de'),
+        (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('yannick') && voice.lang.startsWith('de'),
+        (voice: SpeechSynthesisVoice) => voice.lang === 'de-DE',
+        (voice: SpeechSynthesisVoice) => voice.lang === 'de-AT',
+        (voice: SpeechSynthesisVoice) => voice.lang === 'de-CH',
+        (voice: SpeechSynthesisVoice) => voice.lang.startsWith('de'),
+        (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('german'),
+        (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('deutsch'),
+      ];
+
+      let selectedVoice: SpeechSynthesisVoice | null = null;
+      for (const priorityCheck of germanVoicePriorities) {
+        const foundVoice = voices.find(priorityCheck);
+        if (foundVoice) {
+          selectedVoice = foundVoice;
+          const quality = foundVoice.name.toLowerCase().includes('premium') || 
+                         foundVoice.name.toLowerCase().includes('enhanced') || 
+                         foundVoice.name.toLowerCase().includes('neural') ? '🌟 Premium' : '📻 Standard';
+          setAudioTestResult(prev => prev + `\n🇩🇪 Selected: ${foundVoice.name} (${foundVoice.lang}) - ${quality}`);
+          break;
+        }
+      }
+
+      if (!selectedVoice) {
+        setAudioTestResult(prev => prev + '\n⚠️ No German voice found, will use fallback');
+      }
+
+      if (selectedVoice) {
+        utterance.voice = selectedVoice;
       }
 
       utterance.onstart = () => {
@@ -236,8 +463,54 @@ function App() {
             <span className="mr-2">🎧</span>
             Audio System Test
           </h2>
+          
+          {/* Premium API Toggle */}
+          <div className="mb-6 p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-200">
+            <h3 className="text-lg font-semibold mb-3 flex items-center">
+              <span className="mr-2">🌟</span>
+              Premium Voice Quality
+            </h3>
+            <div className="space-y-3">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="premium-api"
+                  checked={usePremiumAPI}
+                  onChange={(e) => setUsePremiumAPI(e.target.checked)}
+                  className="mr-3 h-4 w-4 text-blue-600 rounded"
+                />
+                <label htmlFor="premium-api" className="text-sm font-medium">
+                  Use Google Cloud TTS (Premium Quality)
+                </label>
+              </div>
+              
+              {usePremiumAPI && (
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Google Cloud API Key:
+                  </label>
+                  <input
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="Enter your Google Cloud API key"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="text-xs text-gray-600">
+                    Get your API key from <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Google Cloud Console</a>
+                  </p>
+                </div>
+              )}
+              
+              <div className="text-sm text-gray-600">
+                <p><strong>Web Speech API:</strong> Free, basic quality, works offline</p>
+                <p><strong>Google Cloud TTS:</strong> Premium quality, requires API key, costs ~$4/million characters</p>
+              </div>
+            </div>
+          </div>
+          
           <p className="text-gray-600 mb-4">
-            Test if Web Speech API is working before uploading files
+            Test if {usePremiumAPI ? 'Google Cloud TTS' : 'Web Speech API'} is working before uploading files
           </p>
           <button
             onClick={testAudioSystem}
@@ -332,6 +605,9 @@ function App() {
                         </>
                       )}
                     </button>
+                    <div className="mt-2 text-xs text-gray-500 text-center">
+                      🌟 Premium voices available
+                    </div>
                   </div>
                 </div>
               ))}
