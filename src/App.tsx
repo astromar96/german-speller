@@ -14,6 +14,8 @@ function App() {
   const [audioTestResult, setAudioTestResult] = useState<string>('');
   const [usePremiumAPI, setUsePremiumAPI] = useState(false);
   const [apiKey, setApiKey] = useState('');
+  const [useFreeAPI, setUseFreeAPI] = useState(false);
+  const [freeApiKey, setFreeApiKey] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const speechSynthesisRef = useRef<SpeechSynthesis | null>(null);
 
@@ -70,6 +72,8 @@ function App() {
 
     if (usePremiumAPI && apiKey) {
       speakWithGoogleTTS(word);
+    } else if (useFreeAPI && freeApiKey) {
+      speakWithVoiceRSS(word);
     } else {
       speakWithWebSpeechAPI(word);
     }
@@ -123,6 +127,34 @@ function App() {
     } catch (error) {
       console.error('Google TTS error:', error);
       showMessage('Google TTS failed, falling back to Web Speech API', 'error');
+      speakWithWebSpeechAPI(word);
+    }
+  };
+
+  const speakWithVoiceRSS = async (word: string) => {
+    try {
+      const response = await fetch(`https://api.voicerss.org/?key=${freeApiKey}&hl=de-de&src=${encodeURIComponent(word)}&c=MP3&f=44khz_16bit_stereo`);
+      if (!response.ok) {
+        throw new Error(`VoiceRSS API error: ${response.status}`);
+      }
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      
+      const audio = new Audio(audioUrl);
+      audio.onended = () => {
+        setPlayingWordId(null);
+        URL.revokeObjectURL(audioUrl);
+      };
+      audio.onerror = () => {
+        setPlayingWordId(null);
+        showMessage('Failed to play VoiceRSS audio', 'error');
+        URL.revokeObjectURL(audioUrl);
+      };
+      
+      audio.play();
+    } catch (error) {
+      console.error('VoiceRSS error:', error);
+      showMessage('VoiceRSS failed, falling back to Web Speech API', 'error');
       speakWithWebSpeechAPI(word);
     }
   };
@@ -247,6 +279,9 @@ function App() {
     if (usePremiumAPI && apiKey) {
       setAudioTestResult('🧪 Testing Google Cloud TTS...');
       testGoogleTTS();
+    } else if (useFreeAPI && freeApiKey) {
+      setAudioTestResult('🧪 Testing VoiceRSS...');
+      testVoiceRSS();
     } else {
       setAudioTestResult('🧪 Testing Web Speech API...');
       testWebSpeechAPI();
@@ -315,6 +350,43 @@ function App() {
       
     } catch (error) {
       setAudioTestResult(`❌ Google Cloud TTS test failed: ${(error as Error).message}`);
+    }
+  };
+
+  const testVoiceRSS = async () => {
+    try {
+      setAudioTestResult(prev => prev + '\n✅ Testing VoiceRSS API');
+      
+      const testWord = 'Hallo';
+      setAudioTestResult(prev => prev + `\n🎤 Testing pronunciation of: "${testWord}"`);
+      
+      const response = await fetch(`https://api.voicerss.org/?key=${freeApiKey}&hl=de-de&src=${encodeURIComponent(testWord)}&c=MP3&f=44khz_16bit_stereo`);
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status} - ${response.statusText}`);
+      }
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      
+      const audio = new Audio(audioUrl);
+      audio.oncanplay = () => {
+        setAudioTestResult(prev => prev + '\n✅ Audio generated and ready to play');
+      };
+      audio.onplay = () => {
+        setAudioTestResult(prev => prev + '\n🎵 Playing VoiceRSS audio...');
+      };
+      audio.onended = () => {
+        setAudioTestResult(prev => prev + '\n✅ VoiceRSS audio playback completed!');
+        URL.revokeObjectURL(audioUrl);
+      };
+      audio.onerror = () => {
+        setAudioTestResult(prev => prev + '\n❌ Failed to play VoiceRSS audio');
+        URL.revokeObjectURL(audioUrl);
+      };
+      
+      await audio.play();
+      
+    } catch (error) {
+      setAudioTestResult(`❌ VoiceRSS test failed: ${(error as Error).message}`);
     }
   };
 
@@ -508,9 +580,54 @@ function App() {
               </div>
             </div>
           </div>
+
+          {/* Free API Toggle */}
+          <div className="mb-6 p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border border-green-200">
+            <h3 className="text-lg font-semibold mb-3 flex items-center">
+              <span className="mr-2">🌟</span>
+              Free Voice Quality
+            </h3>
+            <div className="space-y-3">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="free-api"
+                  checked={useFreeAPI}
+                  onChange={(e) => setUseFreeAPI(e.target.checked)}
+                  className="mr-3 h-4 w-4 text-green-600 rounded"
+                />
+                <label htmlFor="free-api" className="text-sm font-medium">
+                  Use VoiceRSS (Free Quality)
+                </label>
+              </div>
+              
+              {useFreeAPI && (
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    VoiceRSS API Key:
+                  </label>
+                  <input
+                    type="password"
+                    value={freeApiKey}
+                    onChange={(e) => setFreeApiKey(e.target.value)}
+                    placeholder="Enter your VoiceRSS API key"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  <p className="text-xs text-gray-600">
+                    Get your API key from <a href="https://www.voicerss.org/" target="_blank" rel="noopener noreferrer" className="text-green-600 hover:underline">VoiceRSS</a>
+                  </p>
+                </div>
+              )}
+              
+              <div className="text-sm text-gray-600">
+                <p><strong>Web Speech API:</strong> Free, basic quality, works offline</p>
+                <p><strong>VoiceRSS:</strong> Free, requires API key, works globally, limited to 1000 characters/day</p>
+              </div>
+            </div>
+          </div>
           
           <p className="text-gray-600 mb-4">
-            Test if {usePremiumAPI ? 'Google Cloud TTS' : 'Web Speech API'} is working before uploading files
+            Test if {usePremiumAPI ? 'Google Cloud TTS' : useFreeAPI ? 'VoiceRSS' : 'Web Speech API'} is working before uploading files
           </p>
           <button
             onClick={testAudioSystem}
