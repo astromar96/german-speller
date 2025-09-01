@@ -397,60 +397,7 @@ function App() {
     }
   };
 
-  const testWebSpeechAPI = async () => {
-    try {
-      // Check if speech synthesis is supported
-      if (!window.speechSynthesis) {
-        setAudioTestResult('❌ Web Speech API is not supported in this browser');
-        return;
-      }
 
-      setAudioTestResult(prev => prev + '\n✅ Web Speech API is supported');
-
-      // Get available voices
-      const voices = speechSynthesis.getVoices();
-      setAudioTestResult(prev => prev + `\n📢 Found ${voices.length} available voices`);
-
-      // Show all available voices for debugging
-      setAudioTestResult(prev => prev + '\n\n🎭 Available voices:');
-      voices.forEach((voice, index) => {
-        const quality = voice.name.toLowerCase().includes('premium') || 
-                       voice.name.toLowerCase().includes('enhanced') || 
-                       voice.name.toLowerCase().includes('neural') ? '🌟' : '📻';
-        setAudioTestResult(prev => prev + `\n${quality} ${voice.name} (${voice.lang})`);
-      });
-
-      // Test with a simple German word
-      const testWord = 'Hallo';
-      setAudioTestResult(prev => prev + `\n\n🎤 Testing pronunciation of: "${testWord}"`);
-      
-      const utterance = new SpeechSynthesisUtterance(testWord);
-      utterance.lang = 'de-DE';
-      utterance.rate = 0.7;
-      
-      utterance.onstart = () => {
-        setAudioTestResult(prev => prev + '\n🎵 Web Speech API audio started...');
-        setAudioTestResult(prev => prev + `\n⚡ Audio speed set to: ${audioSpeed}x`);
-        setAudioTestResult(prev => prev + `\n🎯 Speed description: ${audioSpeed < 0.8 ? '🐌 Slow (Great for learning pronunciation)' : 
-         audioSpeed < 1.2 ? '🚶 Normal (playback speed)' : 
-         audioSpeed < 1.5 ? '🏃 Fast (review)' : '⚡ Very Fast (review)'}`);
-        setAudioTestResult(prev => prev + `\n📚 Speed Guide: 0.5x-0.8x (Learning) • 1.0x (Normal) • 1.2x-1.5x (Review) • 1.5x-2.0x (Fast Review)`);
-      };
-      
-      utterance.onend = () => {
-        setAudioTestResult(prev => prev + '\n✅ Web Speech API test completed!');
-      };
-      
-      utterance.onerror = (event) => {
-        setAudioTestResult(prev => prev + `\n❌ Web Speech API error: ${event.error}`);
-      };
-      
-      speechSynthesis.speak(utterance);
-      
-    } catch (error) {
-      setAudioTestResult(`❌ Web Speech API test failed: ${(error as Error).message}`);
-    }
-  };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
