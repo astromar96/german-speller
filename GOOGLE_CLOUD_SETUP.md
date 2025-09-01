@@ -2,7 +2,7 @@
 
 ## Quick Fix for 401 Authentication Error
 
-The 401 error means your Google Cloud API key is not working properly. Follow these steps to fix it:
+The 401 error means your Google Cloud API key is not working properly. **The app has been updated to use the correct authentication method.** Follow these steps to fix it:
 
 ### Step 1: Create a Google Cloud Project
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
@@ -26,6 +26,7 @@ The 401 error means your Google Cloud API key is not working properly. Follow th
 2. Click "Create Credentials" → "API Key"
 3. Copy the generated API key
 4. Click "Restrict Key" and select "Cloud Text-to-Speech API"
+5. **Important**: Make sure to restrict the key to only the Text-to-Speech API for security
 
 ### Step 5: Test Your API Key
 1. Paste the API key in the app
@@ -37,8 +38,9 @@ The 401 error means your Google Cloud API key is not working properly. Follow th
 ### ❌ "API key is required"
 - **Solution**: Enter your API key in the "Google Cloud API Key" field
 
-### ❌ "401 Authentication Error"
-- **Solution**: Follow steps 1-4 above to create a proper API key
+### ❌ "401 Authentication Error" / "ACCESS_TOKEN_TYPE_UNSUPPORTED"
+- **Solution**: The app now uses the correct authentication method (API key in query parameter)
+- **Alternative**: Follow steps 1-4 above to create a proper API key
 
 ### ❌ "403 Forbidden"
 - **Solution**: Make sure you've enabled the Text-to-Speech API and restricted the key to it

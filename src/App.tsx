@@ -86,11 +86,11 @@ function App() {
         throw new Error('Google Cloud API key is required');
       }
 
-      const response = await fetch('https://texttospeech.googleapis.com/v1/text:synthesize', {
+      // Use API key in query parameter instead of Authorization header
+      const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           input: { text: word },
@@ -365,11 +365,11 @@ function App() {
       const testWord = 'Hallo';
       setAudioTestResult(prev => prev + `\n🎤 Testing pronunciation of: "${testWord}"`);
       
-      const response = await fetch('https://texttospeech.googleapis.com/v1/text:synthesize', {
+      // Use API key in query parameter instead of Authorization header
+      const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           input: { text: testWord },
