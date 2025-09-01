@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import './App.css';
 
 interface WordData {
   id: number;
@@ -12,12 +13,11 @@ function App() {
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [playingWordId, setPlayingWordId] = useState<number | null>(null);
   const [audioTestResult, setAudioTestResult] = useState<string>('');
-  const [usePremiumAPI, setUsePremiumAPI] = useState(false);
-  const [apiKey, setApiKey] = useState('');
-  const [useFreeAPI, setUseFreeAPI] = useState(false);
-  const [freeApiKey, setFreeApiKey] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const speechSynthesisRef = useRef<SpeechSynthesis | null>(null);
+  
+  // Embedded Google Cloud API key
+  const GOOGLE_CLOUD_API_KEY = 'AIzaSyCsx1IyPxscQ1YpPOGEHSBRQBQPvFjog7k';
 
   const showMessage = (text: string, type: 'success' | 'error' | 'info') => {
     setMessage({ text, type });
@@ -70,24 +70,14 @@ function App() {
       speechSynthesisRef.current.cancel();
     }
 
-    if (usePremiumAPI && apiKey) {
-      speakWithGoogleTTS(word);
-    } else if (useFreeAPI && freeApiKey) {
-      speakWithVoiceRSS(word);
-    } else {
-      speakWithWebSpeechAPI(word);
-    }
+    // Always use Google Cloud TTS with embedded API key
+    speakWithGoogleTTS(word);
   };
 
   const speakWithGoogleTTS = async (word: string) => {
     try {
-      // Check if API key is provided
-      if (!apiKey || apiKey.trim() === '') {
-        throw new Error('Google Cloud API key is required');
-      }
-
-      // Use API key in query parameter instead of Authorization header
-      const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`, {
+      // Use embedded API key in query parameter
+      const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_CLOUD_API_KEY}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -146,82 +136,6 @@ function App() {
     }
   };
 
-  const speakWithVoiceRSS = async (word: string) => {
-    try {
-      // Set playing state immediately
-      setPlayingWordId(wordsData.find(w => w.german === word)?.id || null);
-      
-      const response = await fetch(`https://api.voicerss.org/?key=${freeApiKey}&hl=de-de&src=${encodeURIComponent(word)}&c=MP3&f=44khz_16bit_stereo&r=0`);
-      
-      if (!response.ok) {
-        throw new Error(`VoiceRSS API error: ${response.status} - ${response.statusText}`);
-      }
-      
-      // Check if response is actually audio
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('audio')) {
-        const errorText = await response.text();
-        throw new Error(`VoiceRSS returned non-audio response: ${errorText}`);
-      }
-      
-      const audioBlob = await response.blob();
-      
-      // Verify blob is not empty
-      if (audioBlob.size === 0) {
-        throw new Error('VoiceRSS returned empty audio file');
-      }
-      
-      const audioUrl = URL.createObjectURL(audioBlob);
-      
-      const audio = new Audio();
-      
-      audio.oncanplay = () => {
-        console.log('VoiceRSS audio ready to play');
-      };
-      
-      audio.onplay = () => {
-        console.log('VoiceRSS audio started playing');
-      };
-      
-      audio.onended = () => {
-        console.log('VoiceRSS audio ended');
-        setPlayingWordId(null);
-        URL.revokeObjectURL(audioUrl);
-      };
-      
-      audio.onerror = (e) => {
-        console.error('VoiceRSS audio error:', e);
-        setPlayingWordId(null);
-        showMessage('Failed to play VoiceRSS audio', 'error');
-        URL.revokeObjectURL(audioUrl);
-      };
-      
-      audio.onloadstart = () => {
-        console.log('VoiceRSS audio loading started');
-      };
-      
-      audio.onloadeddata = () => {
-        console.log('VoiceRSS audio data loaded');
-      };
-      
-      // Set the source and play
-      audio.src = audioUrl;
-      
-      try {
-        await audio.play();
-      } catch (playError) {
-        console.error('Audio play error:', playError);
-        throw new Error(`Failed to play audio: ${playError}`);
-      }
-      
-    } catch (error) {
-      console.error('VoiceRSS error:', error);
-      setPlayingWordId(null);
-      showMessage(`VoiceRSS failed: ${(error as Error).message}. Falling back to Web Speech API.`, 'error');
-      speakWithWebSpeechAPI(word);
-    }
-  };
-
   const speakWithWebSpeechAPI = (word: string) => {
     // Create new speech synthesis
     const utterance = new SpeechSynthesisUtterance(word);
@@ -255,11 +169,11 @@ function App() {
       (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('deutsch'),
     ];
 
-    let selectedVoice = null;
+    let selectedVoice: SpeechSynthesisVoice | null = null;
     
     // Try to find the best available German voice
     for (const priorityCheck of germanVoicePriorities) {
-      selectedVoice = voices.find(priorityCheck);
+      selectedVoice = voices.find(priorityCheck) || null;
       if (selectedVoice) {
         console.log(`Selected voice: ${selectedVoice.name} (${selectedVoice.lang})`);
         break;
@@ -278,7 +192,7 @@ function App() {
       ];
 
       for (const priorityCheck of englishVoicePriorities) {
-        selectedVoice = voices.find(priorityCheck);
+        selectedVoice = voices.find(priorityCheck) || null;
         if (selectedVoice) {
           console.log(`Fallback to English voice: ${selectedVoice.name} (${selectedVoice.lang})`);
           break;
@@ -315,20 +229,11 @@ function App() {
     utterance.onerror = (event) => {
       console.error('Speech error:', event);
       setPlayingWordId(null);
-      showMessage('Speech synthesis error: ' + event.error, 'error');
     };
 
-    // Start speaking
-    speechSynthesis.speak(utterance);
+    // Store reference and start speaking
     speechSynthesisRef.current = speechSynthesis;
-  };
-
-  const playAudio = (wordId: number) => {
-    const word = wordsData.find(w => w.id === wordId);
-    if (!word) return;
-
-    setPlayingWordId(wordId);
-    speakWord(word.german);
+    speechSynthesis.speak(utterance);
   };
 
   const stopAudio = () => {
@@ -339,34 +244,21 @@ function App() {
   };
 
   const testAudioSystem = async () => {
-    if (usePremiumAPI && apiKey) {
-      setAudioTestResult('🧪 Testing Google Cloud TTS...');
-      testGoogleTTS();
-    } else if (useFreeAPI && freeApiKey) {
-      setAudioTestResult('🧪 Testing VoiceRSS...');
-      testVoiceRSS();
-    } else {
-      setAudioTestResult('🧪 Testing Web Speech API...');
-      testWebSpeechAPI();
-    }
+    setAudioTestResult('🧪 Testing Google Cloud TTS with embedded API key...');
+    testGoogleTTS();
   };
 
   const testGoogleTTS = async () => {
     try {
       setAudioTestResult(prev => prev + '\n✅ Testing Google Cloud TTS API');
       
-      // Check if API key is provided
-      if (!apiKey || apiKey.trim() === '') {
-        throw new Error('API key is required. Please enter your Google Cloud API key.');
-      }
-      
-      setAudioTestResult(prev => prev + '\n🔑 API key provided (checking format...)');
+      setAudioTestResult(prev => prev + '\n🔑 Using embedded API key');
       
       const testWord = 'Hallo';
       setAudioTestResult(prev => prev + `\n🎤 Testing pronunciation of: "${testWord}"`);
       
-      // Use API key in query parameter instead of Authorization header
-      const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`, {
+      // Use embedded API key in query parameter
+      const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_CLOUD_API_KEY}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -445,80 +337,6 @@ function App() {
     }
   };
 
-  const testVoiceRSS = async () => {
-    try {
-      setAudioTestResult(prev => prev + '\n✅ Testing VoiceRSS API');
-      
-      const testWord = 'Hallo';
-      setAudioTestResult(prev => prev + `\n🎤 Testing pronunciation of: "${testWord}"`);
-      
-      const response = await fetch(`https://api.voicerss.org/?key=${freeApiKey}&hl=de-de&src=${encodeURIComponent(testWord)}&c=MP3&f=44khz_16bit_stereo&r=0`);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`API Error: ${response.status} - ${response.statusText}\nResponse: ${errorText}`);
-      }
-      
-      // Check content type
-      const contentType = response.headers.get('content-type');
-      setAudioTestResult(prev => prev + `\n📄 Response type: ${contentType}`);
-      
-      if (!contentType || !contentType.includes('audio')) {
-        const errorText = await response.text();
-        throw new Error(`VoiceRSS returned non-audio response: ${errorText}`);
-      }
-      
-      const audioBlob = await response.blob();
-      setAudioTestResult(prev => prev + `\n📦 Audio blob size: ${audioBlob.size} bytes`);
-      
-      if (audioBlob.size === 0) {
-        throw new Error('VoiceRSS returned empty audio file');
-      }
-      
-      const audioUrl = URL.createObjectURL(audioBlob);
-      
-      const audio = new Audio();
-      
-      audio.oncanplay = () => {
-        setAudioTestResult(prev => prev + '\n✅ Audio generated and ready to play');
-      };
-      
-      audio.onplay = () => {
-        setAudioTestResult(prev => prev + '\n🎵 Playing VoiceRSS audio...');
-      };
-      
-      audio.onended = () => {
-        setAudioTestResult(prev => prev + '\n✅ VoiceRSS audio playback completed!');
-        URL.revokeObjectURL(audioUrl);
-      };
-      
-      audio.onerror = (e) => {
-        setAudioTestResult(prev => prev + `\n❌ Failed to play VoiceRSS audio: ${e}`);
-        URL.revokeObjectURL(audioUrl);
-      };
-      
-      audio.onloadstart = () => {
-        setAudioTestResult(prev => prev + '\n🔄 Audio loading started...');
-      };
-      
-      audio.onloadeddata = () => {
-        setAudioTestResult(prev => prev + '\n📥 Audio data loaded successfully');
-      };
-      
-      // Set source and play
-      audio.src = audioUrl;
-      
-      try {
-        await audio.play();
-      } catch (playError) {
-        throw new Error(`Failed to play audio: ${playError}`);
-      }
-      
-    } catch (error) {
-      setAudioTestResult(`❌ VoiceRSS test failed: ${(error as Error).message}`);
-    }
-  };
-
   const testWebSpeechAPI = async () => {
     try {
       // Check if speech synthesis is supported
@@ -545,67 +363,27 @@ function App() {
       // Test with a simple German word
       const testWord = 'Hallo';
       setAudioTestResult(prev => prev + `\n\n🎤 Testing pronunciation of: "${testWord}"`);
-
+      
       const utterance = new SpeechSynthesisUtterance(testWord);
       utterance.lang = 'de-DE';
       utterance.rate = 0.7;
-
-      // Use the same voice selection logic as the main function
-      const germanVoicePriorities = [
-        (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('premium'),
-        (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('enhanced'),
-        (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('natural'),
-        (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('neural'),
-        (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('anna') && voice.lang.startsWith('de'),
-        (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('helena') && voice.lang.startsWith('de'),
-        (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('petra') && voice.lang.startsWith('de'),
-        (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('yannick') && voice.lang.startsWith('de'),
-        (voice: SpeechSynthesisVoice) => voice.lang === 'de-DE',
-        (voice: SpeechSynthesisVoice) => voice.lang === 'de-AT',
-        (voice: SpeechSynthesisVoice) => voice.lang === 'de-CH',
-        (voice: SpeechSynthesisVoice) => voice.lang.startsWith('de'),
-        (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('german'),
-        (voice: SpeechSynthesisVoice) => voice.name.toLowerCase().includes('deutsch'),
-      ];
-
-      let selectedVoice: SpeechSynthesisVoice | null = null;
-      for (const priorityCheck of germanVoicePriorities) {
-        const foundVoice = voices.find(priorityCheck);
-        if (foundVoice) {
-          selectedVoice = foundVoice;
-          const quality = foundVoice.name.toLowerCase().includes('premium') || 
-                         foundVoice.name.toLowerCase().includes('enhanced') || 
-                         foundVoice.name.toLowerCase().includes('neural') ? '🌟 Premium' : '📻 Standard';
-          setAudioTestResult(prev => prev + `\n🇩🇪 Selected: ${foundVoice.name} (${foundVoice.lang}) - ${quality}`);
-          break;
-        }
-      }
-
-      if (!selectedVoice) {
-        setAudioTestResult(prev => prev + '\n⚠️ No German voice found, will use fallback');
-      }
-
-      if (selectedVoice) {
-        utterance.voice = selectedVoice;
-      }
-
+      
       utterance.onstart = () => {
-        setAudioTestResult(prev => prev + '\n✅ Speech started!');
+        setAudioTestResult(prev => prev + '\n🎵 Web Speech API audio started...');
       };
-
+      
       utterance.onend = () => {
-        setAudioTestResult(prev => prev + '\n✅ Speech completed successfully!');
+        setAudioTestResult(prev => prev + '\n✅ Web Speech API test completed!');
       };
-
+      
       utterance.onerror = (event) => {
-        setAudioTestResult(prev => prev + `\n❌ Speech error: ${event.error}`);
+        setAudioTestResult(prev => prev + `\n❌ Web Speech API error: ${event.error}`);
       };
-
-      // Start the test
+      
       speechSynthesis.speak(utterance);
-
+      
     } catch (error) {
-      setAudioTestResult(`❌ Test failed: ${(error as Error).message}`);
+      setAudioTestResult(`❌ Web Speech API test failed: ${(error as Error).message}`);
     }
   };
 
@@ -616,7 +394,7 @@ function App() {
     }
   };
 
-  const handleDrop = (event: React.DragEvent) => {
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     const file = event.dataTransfer.files[0];
     if (file) {
@@ -624,26 +402,20 @@ function App() {
     }
   };
 
-  const handleDragOver = (event: React.DragEvent) => {
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-12">
-          <div className="flex items-center justify-center mb-4">
-            <div className="w-12 h-12 text-blue-600 mr-3 text-4xl">🌍</div>
-            <h1 className="text-4xl font-bold text-gray-900">
-              German Speller
-            </h1>
-          </div>
-          <p className="text-xl text-gray-600">
-            Learn German words with Arabic translations and audio pronunciation
-          </p>
-          <p className="text-sm text-gray-500 mt-2">
-            Frontend-only version using Web Speech API
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-800 mb-2">
+            🇩🇪 German Speller
+          </h1>
+          <p className="text-lg text-gray-600">
+            Learn German words with Arabic translations and premium audio pronunciation
           </p>
         </div>
 
@@ -658,152 +430,31 @@ function App() {
           </div>
         )}
 
-        {/* Audio Test Section */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <h2 className="text-xl font-semibold mb-2 flex items-center">
-            <span className="mr-2">🎧</span>
-            Audio System Test
-          </h2>
-          
-          {/* Premium API Toggle */}
-          <div className="mb-6 p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-200">
-            <h3 className="text-lg font-semibold mb-3 flex items-center">
-              <span className="mr-2">🌟</span>
-              Premium Voice Quality
-            </h3>
-            <div className="space-y-3">
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="premium-api"
-                  checked={usePremiumAPI}
-                  onChange={(e) => setUsePremiumAPI(e.target.checked)}
-                  className="mr-3 h-4 w-4 text-blue-600 rounded"
-                />
-                <label htmlFor="premium-api" className="text-sm font-medium">
-                  Use Google Cloud TTS (Premium Quality)
-                </label>
-              </div>
-              
-              {usePremiumAPI && (
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Google Cloud API Key:
-                  </label>
-                  <input
-                    type="password"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="Enter your Google Cloud API key"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <p className="text-xs text-gray-600">
-                    Get your API key from <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Google Cloud Console</a>
-                  </p>
-                </div>
-              )}
-              
-              <div className="text-sm text-gray-600">
-                <p><strong>Web Speech API:</strong> Free, basic quality, works offline</p>
-                <p><strong>Google Cloud TTS:</strong> Premium quality, requires API key, costs ~$4/million characters</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Free API Toggle */}
-          <div className="mb-6 p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border border-green-200">
-            <h3 className="text-lg font-semibold mb-3 flex items-center">
-              <span className="mr-2">🌟</span>
-              Free Voice Quality
-            </h3>
-            <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
-              <p className="text-sm text-yellow-800">
-                🎯 <strong>Demo Mode:</strong> Try the app without any API keys! Just use Web Speech API for instant testing.
-              </p>
-            </div>
-            <div className="space-y-3">
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="free-api"
-                  checked={useFreeAPI}
-                  onChange={(e) => setUseFreeAPI(e.target.checked)}
-                  className="mr-3 h-4 w-4 text-green-600 rounded"
-                />
-                <label htmlFor="free-api" className="text-sm font-medium">
-                  Use VoiceRSS (Free Quality)
-                </label>
-              </div>
-              
-              {useFreeAPI && (
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    VoiceRSS API Key:
-                  </label>
-                  <input
-                    type="password"
-                    value={freeApiKey}
-                    onChange={(e) => setFreeApiKey(e.target.value)}
-                    placeholder="Enter your VoiceRSS API key"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
-                  <p className="text-xs text-gray-600">
-                    Get your API key from <a href="https://www.voicerss.org/" target="_blank" rel="noopener noreferrer" className="text-green-600 hover:underline">VoiceRSS</a>
-                  </p>
-                </div>
-              )}
-              
-                             <div className="text-sm text-gray-600">
-                 <p><strong>Web Speech API:</strong> Free, basic quality, works offline</p>
-                 <p><strong>VoiceRSS:</strong> Free, requires API key, works globally, limited to 350 requests/day</p>
-                 <p className="text-xs text-gray-500 mt-1">
-                   💡 <strong>Tip:</strong> If you don't have a VoiceRSS API key, the app will automatically use Web Speech API
-                 </p>
-               </div>
-            </div>
-          </div>
-          
-          <p className="text-gray-600 mb-4">
-            Test if {usePremiumAPI ? 'Google Cloud TTS' : useFreeAPI ? 'VoiceRSS' : 'Web Speech API'} is working before uploading files
-          </p>
-          <button
-            onClick={testAudioSystem}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
-          >
-            <span className="mr-2">🎵</span>
-            Test Audio System
-          </button>
-          {audioTestResult && (
-            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-              <pre className="text-sm text-gray-700 whitespace-pre-wrap">{audioTestResult}</pre>
-            </div>
-          )}
-        </div>
-
-        {/* Upload Section */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <h2 className="text-xl font-semibold mb-2 flex items-center">
+        {/* File Upload Section */}
+        <div className="mb-8 p-6 bg-white rounded-lg shadow-lg">
+          <h2 className="text-2xl font-semibold mb-4 flex items-center">
             <span className="mr-2">📁</span>
-            Upload Excel File
+            Upload German Words
           </h2>
-          <p className="text-gray-600 mb-4">
-            Upload an Excel file with German words and Arabic translations
-          </p>
+          
+          <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded">
+            <p className="text-sm text-blue-800">
+              📋 <strong>Supported formats:</strong> Excel files (.xlsx, .xls) with German words and Arabic translations
+            </p>
+          </div>
+          
           <div
             className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors cursor-pointer"
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onClick={() => fileInputRef.current?.click()}
           >
-            <div className="text-6xl mb-4">📊</div>
+            <div className="text-6xl mb-4">📄</div>
             <p className="text-lg text-gray-600 mb-2">
-              Drop your Excel file here or click to browse
+              {isUploading ? 'Uploading...' : 'Drop your Excel file here or click to browse'}
             </p>
-            <button className="bg-gray-100 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-200 transition-colors">
-              Choose File
-            </button>
-            <p className="text-sm text-gray-500 mt-2">
-              Supports .xlsx and .xls files
+            <p className="text-sm text-gray-500">
+              {isUploading ? 'Please wait...' : 'Supports .xlsx and .xls files'}
             </p>
             <input
               ref={fileInputRef}
@@ -813,55 +464,95 @@ function App() {
               className="hidden"
             />
           </div>
-          {isUploading && (
-            <div className="mt-4 text-center">
-              <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-              <span className="ml-2 text-gray-600">Processing file...</span>
+        </div>
+
+        {/* Audio System Section */}
+        <div className="mb-8 p-6 bg-white rounded-lg shadow-lg">
+          <h2 className="text-2xl font-semibold mb-4 flex items-center">
+            <span className="mr-2">🎵</span>
+            Audio System
+          </h2>
+          
+          {/* Google Cloud TTS Info */}
+          <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+            <h3 className="text-lg font-semibold mb-3 flex items-center">
+              <span className="mr-2">🚀</span>
+              Premium Voice Quality
+            </h3>
+            <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded">
+              <p className="text-sm text-green-800">
+                ✅ <strong>Ready to Use:</strong> Google Cloud TTS API key is embedded and ready to use!
+              </p>
+            </div>
+            <div className="space-y-3">
+              <div className="text-sm text-gray-600">
+                <p><strong>Google Cloud TTS:</strong> Premium quality German pronunciation using neural voices</p>
+                <p><strong>Voice:</strong> de-DE-Neural2-A (High-quality German female voice)</p>
+                <p><strong>Cost:</strong> Free tier: 4 million characters/month, then ~$4/million characters</p>
+                <p><strong>Fallback:</strong> Automatically falls back to Web Speech API if needed</p>
+              </div>
+            </div>
+          </div>
+          
+          <p className="text-gray-600 mb-4">
+            Test Google Cloud TTS before uploading files
+          </p>
+          <button
+            onClick={testAudioSystem}
+            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+          >
+            <span className="mr-2">🎵</span>
+            Test Audio System
+          </button>
+          
+          {audioTestResult && (
+            <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+              <h4 className="font-semibold mb-2">Test Results:</h4>
+              <pre className="text-sm text-gray-700 whitespace-pre-wrap">{audioTestResult}</pre>
             </div>
           )}
         </div>
 
         {/* Words Display */}
         {wordsData.length > 0 && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4 flex items-center">
+          <div className="mb-8 p-6 bg-white rounded-lg shadow-lg">
+            <h2 className="text-2xl font-semibold mb-4 flex items-center">
               <span className="mr-2">📚</span>
               German Words ({wordsData.length})
             </h2>
+            
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {wordsData.map((word) => (
-                <div key={word.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-semibold text-lg text-gray-900">{word.german}</h3>
-                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">#{word.id}</span>
+                <div
+                  key={word.id}
+                  className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
+                >
+                  <div className="text-lg font-semibold text-gray-800 mb-2">
+                    🇩🇪 {word.german}
                   </div>
-                  <div className="mb-4">
-                    <p className="text-gray-600 text-right text-lg" dir="rtl">
-                      {word.arabic}
-                    </p>
+                  <div className="text-lg text-gray-600 mb-3">
+                    🇸🇦 {word.arabic}
                   </div>
-                  <div className="mt-4">
+                  <div className="flex space-x-2">
                     <button
-                      onClick={() => playingWordId === word.id ? stopAudio() : playAudio(word.id)}
-                      className={`w-full px-4 py-2 rounded-md transition-colors ${
-                        playingWordId === word.id 
-                          ? 'bg-red-600 text-white hover:bg-red-700' 
+                      onClick={() => speakWord(word.german)}
+                      disabled={playingWordId === word.id}
+                      className={`flex-1 px-4 py-2 rounded-lg transition-colors ${
+                        playingWordId === word.id
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                           : 'bg-blue-600 text-white hover:bg-blue-700'
                       }`}
                     >
-                      {playingWordId === word.id ? (
-                        <>
-                          ⏹️ Stop
-                        </>
-                      ) : (
-                        <>
-                          🔊 Play Audio
-                        </>
-                      )}
+                      {playingWordId === word.id ? '🔊 Playing...' : '🔊 Play Audio'}
                     </button>
-                    <div className="mt-2 text-xs text-gray-500 text-center">
-                      🌟 Premium voices available
-                    </div>
+                    {playingWordId === word.id && (
+                      <button
+                        onClick={stopAudio}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                      >
+                        ⏹️ Stop
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -870,8 +561,9 @@ function App() {
         )}
 
         {/* Footer */}
-        <div className="text-center mt-16 text-gray-500">
-          <p>German Speller - Frontend-only version with Web Speech API</p>
+        <div className="text-center text-gray-500 text-sm">
+          <p>Built with React, TypeScript, and Google Cloud TTS</p>
+          <p className="mt-1">Premium German pronunciation powered by Google Cloud</p>
         </div>
       </div>
     </div>
