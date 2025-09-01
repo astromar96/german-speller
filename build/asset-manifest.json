@@ -1,13 +1,13 @@
 {
   "files": {
     "main.css": "/german-speller/static/css/main.ec63f2ec.css",
-    "main.js": "/german-speller/static/js/main.0d7bb263.js",
+    "main.js": "/german-speller/static/js/main.e1136bc0.js",
     "index.html": "/german-speller/index.html",
     "main.ec63f2ec.css.map": "/german-speller/static/css/main.ec63f2ec.css.map",
-    "main.0d7bb263.js.map": "/german-speller/static/js/main.0d7bb263.js.map"
+    "main.e1136bc0.js.map": "/german-speller/static/js/main.e1136bc0.js.map"
   },
   "entrypoints": [
     "static/css/main.ec63f2ec.css",
-    "static/js/main.0d7bb263.js"
+    "static/js/main.e1136bc0.js"
   ]
 }

@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import './App.css';
 
 interface WordData {
@@ -84,38 +85,94 @@ function App() {
   const uploadFile = async (file: File) => {
     if (!file) return;
 
+    // Validate file type
+    const validTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      'application/vnd.ms-excel', // .xls
+      'text/csv' // .csv
+    ];
+    
+    if (!validTypes.includes(file.type)) {
+      showMessage('Please upload a valid Excel file (.xlsx, .xls) or CSV file (.csv)', 'error');
+      return;
+    }
+
     setIsUploading(true);
     
     try {
-      // For now, we'll create sample data since we can't parse Excel in pure frontend
-      // In a real implementation, you'd use a library like SheetJS (xlsx) to parse Excel files
-      const sampleData: WordData[] = [
-        { id: 0, german: 'Hallo', arabic: 'مرحبا' },
-        { id: 1, german: 'Guten Morgen', arabic: 'صباح الخير' },
-        { id: 2, german: 'Guten Tag', arabic: 'يوم سعيد' },
-        { id: 3, german: 'Guten Abend', arabic: 'مساء الخير' },
-        { id: 4, german: 'Auf Wiedersehen', arabic: 'مع السلامة' },
-        { id: 5, german: 'Danke', arabic: 'شكراً' },
-        { id: 6, german: 'Bitte', arabic: 'من فضلك' },
-        { id: 7, german: 'Entschuldigung', arabic: 'عذراً' },
-        { id: 8, german: 'Ja', arabic: 'نعم' },
-        { id: 9, german: 'Nein', arabic: 'لا' },
-        { id: 10, german: 'Ich verstehe', arabic: 'أفهم' },
-        { id: 11, german: 'Ich verstehe nicht', arabic: 'لا أفهم' },
-        { id: 12, german: 'Ich heiße', arabic: 'اسمي' },
-        { id: 13, german: 'Freut mich', arabic: 'تشرفت بمقابلتك' },
-        { id: 14, german: 'Wie geht es dir?', arabic: 'كيف حالك؟' },
-        { id: 15, german: 'Mir geht es gut', arabic: 'أنا بخير' },
-        { id: 16, german: 'Kannst du das wiederholen?', arabic: 'هل يمكنك تكرار ذلك؟' },
-        { id: 17, german: 'Sprechen Sie Englisch?', arabic: 'هل تتحدث الإنجليزية؟' },
-        { id: 18, german: 'Wo ist die Toilette?', arabic: 'أين الحمام؟' },
-        { id: 19, german: 'Wie viel kostet das?', arabic: 'كم يكلف هذا؟' },
-      ];
-
-      setWordsData(sampleData);
-      showMessage(`Successfully loaded ${sampleData.length} German words with Arabic translations!`, 'success');
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      
+      // Get the first sheet
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      
+      // Convert sheet to JSON
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      
+      if (jsonData.length < 2) {
+        throw new Error('File must contain at least a header row and one data row');
+      }
+      
+      // Extract header row
+      const headers = jsonData[0] as string[];
+      
+      // Find German and Arabic column indices
+      let germanColIndex = -1;
+      let arabicColIndex = -1;
+      
+      headers.forEach((header, index) => {
+        const headerLower = header.toLowerCase();
+        if (headerLower.includes('german') || headerLower.includes('deutsch') || headerLower.includes('de')) {
+          germanColIndex = index;
+        } else if (headerLower.includes('arabic') || headerLower.includes('arabisch') || headerLower.includes('ar')) {
+          arabicColIndex = index;
+        }
+      });
+      
+      // If specific columns not found, use first two columns
+      if (germanColIndex === -1) germanColIndex = 0;
+      if (arabicColIndex === -1) arabicColIndex = 1;
+      
+      // Process data rows
+      const wordsData: WordData[] = [];
+      
+      for (let i = 1; i < jsonData.length; i++) {
+        const row = jsonData[i] as any[];
+        const german = row[germanColIndex];
+        const arabic = row[arabicColIndex];
+        
+        // Skip empty rows
+        if (german && arabic && german.toString().trim() && arabic.toString().trim()) {
+          wordsData.push({
+            id: i - 1,
+            german: german.toString().trim(),
+            arabic: arabic.toString().trim()
+          });
+        }
+      }
+      
+      if (wordsData.length === 0) {
+        throw new Error('No valid data found in the file. Please ensure the file contains German words and Arabic translations.');
+      }
+      
+      setWordsData(wordsData);
+      showMessage(`Successfully loaded ${wordsData.length} German words with Arabic translations from "${file.name}"!`, 'success');
+      
+      // Log column mapping for debugging
+      if (isDebugMode()) {
+        console.log('Column mapping:', {
+          headers,
+          germanColumn: headers[germanColIndex],
+          arabicColumn: headers[arabicColIndex],
+          totalRows: jsonData.length - 1,
+          validRows: wordsData.length
+        });
+      }
+      
     } catch (error) {
-      showMessage('Upload failed: ' + (error as Error).message, 'error');
+      console.error('File parsing error:', error);
+      showMessage(`Failed to parse file: ${(error as Error).message}`, 'error');
     } finally {
       setIsUploading(false);
     }
@@ -472,9 +529,12 @@ function App() {
             Upload German Words
           </h2>
           
-          <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded">
+                    <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded">
             <p className="text-sm text-blue-800">
-              📋 <strong>Supported formats:</strong> Excel files (.xlsx, .xls) with German words and Arabic translations
+              📋 <strong>Supported formats:</strong> Excel files (.xlsx, .xls) or CSV files (.csv) with German words and Arabic translations
+            </p>
+            <p className="text-sm text-blue-800 mt-2">
+              🗂️ <strong>File structure:</strong> First row should contain headers (e.g., "German", "Arabic" or "Deutsch", "Arabisch")
             </p>
             <p className="text-sm text-blue-800 mt-2">
               ⚡ <strong>Audio Speed:</strong> {audioSpeed}x - {audioSpeed < 0.8 ? '🐌 Slow (Great for learning pronunciation)' : 
@@ -484,12 +544,12 @@ function App() {
             <p className="text-xs text-blue-700 mt-1">
               💡 All uploaded words will be pronounced at the selected speed for consistent learning experience.
             </p>
-                                                      <div className="mt-2 p-2 bg-blue-100 border border-blue-200 rounded text-xs text-blue-800">
-                <strong>🎯 Speed Guide:</strong> 0.5x-0.8x (Learning) • 1.0x (Normal) • 1.2x-1.5x (Review) • 1.5x-2.0x (Fast Review)
-              </div>
-              <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
-                <strong>⌨️ Keyboard Shortcuts:</strong> Ctrl/Cmd + 1 (1.0x), Ctrl/Cmd + 2 (2.0x), Ctrl/Cmd + 3 (0.5x), Ctrl/Cmd + 4 (1.5x)
-              </div>
+            <div className="mt-2 p-2 bg-blue-100 border border-blue-200 rounded text-xs text-blue-800">
+              <strong>🎯 Speed Guide:</strong> 0.5x-0.8x (Learning) • 1.0x (Normal) • 1.2x-1.5x (Review) • 1.5x-2.0x (Fast Review)
+            </div>
+            <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
+              <strong>⌨️ Keyboard Shortcuts:</strong> Ctrl/Cmd + 1 (1.0x), Ctrl/Cmd + 2 (2.0x), Ctrl/Cmd + 3 (0.5x), Ctrl/Cmd + 4 (1.5x)
+            </div>
           </div>
           
           <div
