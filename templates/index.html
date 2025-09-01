@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>German Speller - تعلم الألمانية</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .upload-section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .file-upload {
+            border: 3px dashed #ddd;
+            border-radius: 10px;
+            padding: 40px;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .file-upload:hover {
+            border-color: #667eea;
+            background-color: #f8f9ff;
+        }
+
+        .file-upload.dragover {
+            border-color: #667eea;
+            background-color: #f0f4ff;
+        }
+
+        .file-upload i {
+            font-size: 3rem;
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .file-upload p {
+            font-size: 1.1rem;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .file-upload small {
+            color: #999;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .upload-btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 20px;
+        }
+
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .upload-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .words-container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            display: none;
+        }
+
+        .words-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .words-count {
+            font-size: 1.2rem;
+            color: #666;
+        }
+
+        .clear-btn {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .clear-btn:hover {
+            background: #ff5252;
+            transform: translateY(-1px);
+        }
+
+        .words-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .word-card {
+            background: #f8f9ff;
+            border-radius: 10px;
+            padding: 20px;
+            border-left: 4px solid #667eea;
+            transition: all 0.3s ease;
+        }
+
+        .word-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .word-german {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .word-arabic {
+            font-size: 1.3rem;
+            color: #666;
+            margin-bottom: 20px;
+            text-align: center;
+            direction: rtl;
+            font-family: 'Arial', sans-serif;
+        }
+
+        .audio-controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .audio-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+
+        .audio-btn:hover {
+            background: #218838;
+            transform: translateY(-1px);
+        }
+
+        .audio-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .audio-btn.playing {
+            background: #dc3545;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .message {
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .message.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .sample-excel {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .sample-excel h3 {
+            color: #495057;
+            margin-bottom: 15px;
+        }
+
+        .sample-excel table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .sample-excel th, .sample-excel td {
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .sample-excel th {
+            background: #e9ecef;
+            font-weight: bold;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .words-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .container {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🇩🇪 German Speller</h1>
+            <p>تعلم الألمانية مع النطق الصحيح | Learn German with Proper Pronunciation</p>
+        </div>
+
+        <div class="upload-section">
+            <h2>📁 Upload Excel File</h2>
+            <p>Upload an Excel file with German words and Arabic translations</p>
+            
+            <div style="margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 10px;">
+                <h3>🔊 Audio Test</h3>
+                <p>Test if audio is working before uploading files:</p>
+                <button onclick="testAudioSystem()" style="background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">
+                    <i class="fas fa-volume-up"></i> Test Audio System
+                </button>
+                <div id="audioTestResult" style="margin-top: 10px;"></div>
+            </div>
+            
+            <div class="file-upload" id="fileUpload">
+                <i class="fas fa-cloud-upload-alt"></i>
+                <p>Click to select or drag and drop your Excel file here</p>
+                <small>Supports .xlsx and .xls files</small>
+                <input type="file" id="fileInput" accept=".xlsx,.xls">
+            </div>
+
+            <button class="upload-btn" id="uploadBtn" disabled>
+                <i class="fas fa-upload"></i> Upload File
+            </button>
+
+            <div class="sample-excel">
+                <h3>📋 Expected Excel Format:</h3>
+                <p>Your Excel file should have 2 columns: German words in the first column and Arabic translations in the second column.</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Column A (German)</th>
+                            <th>Column B (Arabic)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Hallo</td>
+                            <td>مرحبا</td>
+                        </tr>
+                        <tr>
+                            <td>Danke</td>
+                            <td>شكرا</td>
+                        </tr>
+                        <tr>
+                            <td>Bitte</td>
+                            <td>من فضلك</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="words-container" id="wordsContainer">
+            <div class="words-header">
+                <div class="words-count" id="wordsCount">0 words loaded</div>
+                <button class="clear-btn" id="clearBtn">
+                    <i class="fas fa-trash"></i> Clear All
+                </button>
+            </div>
+            <div class="words-grid" id="wordsGrid"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentAudio = null;
+        let wordsData = [];
+
+        // File upload handling
+        const fileUpload = document.getElementById('fileUpload');
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const wordsContainer = document.getElementById('wordsContainer');
+        const wordsGrid = document.getElementById('wordsGrid');
+        const wordsCount = document.getElementById('wordsCount');
+        const clearBtn = document.getElementById('clearBtn');
+
+        // Drag and drop functionality
+        fileUpload.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            fileUpload.classList.add('dragover');
+        });
+
+        fileUpload.addEventListener('dragleave', () => {
+            fileUpload.classList.remove('dragover');
+        });
+
+        fileUpload.addEventListener('drop', (e) => {
+            e.preventDefault();
+            fileUpload.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                handleFileSelect();
+            }
+        });
+
+        fileUpload.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', handleFileSelect);
+
+        function handleFileSelect() {
+            const file = fileInput.files[0];
+            if (file) {
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = `<i class="fas fa-upload"></i> Upload ${file.name}`;
+            } else {
+                uploadBtn.disabled = true;
+                uploadBtn.innerHTML = `<i class="fas fa-upload"></i> Upload File`;
+            }
+        }
+
+        uploadBtn.addEventListener('click', uploadFile);
+
+        function uploadFile() {
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            uploadBtn.disabled = true;
+            uploadBtn.innerHTML = '<div class="loading"></div> Uploading...';
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showMessage(data.message, 'success');
+                    // Use the actual words data from the server
+                    wordsData = data.words || [];
+                    displayWords();
+                    wordsContainer.style.display = 'block';
+                } else {
+                    showMessage(data.error, 'error');
+                }
+            })
+            .catch(error => {
+                showMessage('Error uploading file: ' + error.message, 'error');
+            })
+            .finally(() => {
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = `<i class="fas fa-upload"></i> Upload File`;
+                fileInput.value = '';
+                handleFileSelect();
+            });
+        }
+
+        function loadWords() {
+            fetch('/words')
+                .then(response => response.json())
+                .then(data => {
+                    wordsData = data;
+                    displayWords();
+                })
+                .catch(error => {
+                    console.error('Error loading words:', error);
+                });
+        }
+
+        function displayWords() {
+            wordsCount.textContent = `${wordsData.length} words loaded`;
+            wordsGrid.innerHTML = '';
+
+            wordsData.forEach(word => {
+                const wordCard = createWordCard(word);
+                wordsGrid.appendChild(wordCard);
+            });
+        }
+
+        function createWordCard(word) {
+            const card = document.createElement('div');
+            card.className = 'word-card';
+            card.innerHTML = `
+                <div class="word-german">${word.german}</div>
+                <div class="word-arabic">${word.arabic}</div>
+                <div class="audio-controls">
+                    <button class="audio-btn" onclick="generateAudio(${word.id})" id="audioBtn${word.id}">
+                        <i class="fas fa-volume-up"></i> Generate Audio
+                    </button>
+                    <button class="audio-btn" onclick="playAudio(${word.id})" id="playBtn${word.id}" 
+                            style="display: none;" disabled>
+                        <i class="fas fa-play"></i> Play
+                    </button>
+                </div>
+            `;
+            return card;
+        }
+
+        function generateAudio(wordId) {
+            const audioBtn = document.getElementById(`audioBtn${wordId}`);
+            const playBtn = document.getElementById(`playBtn${wordId}`);
+            
+            audioBtn.disabled = true;
+            audioBtn.innerHTML = '<div class="loading"></div> Generating...';
+
+            fetch(`/generate-audio/${wordId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        audioBtn.style.display = 'none';
+                        playBtn.style.display = 'inline-block';
+                        playBtn.disabled = false;
+                        
+                        // Update word data
+                        const word = wordsData.find(w => w.id === wordId);
+                        if (word) {
+                            word.audio_generated = true;
+                            word.audio_file = data.audio_file;
+                        }
+                        
+                        showMessage(data.message, 'success');
+                    } else {
+                        showMessage(data.error, 'error');
+                        audioBtn.disabled = false;
+                        audioBtn.innerHTML = '<i class="fas fa-volume-up"></i> Generate Audio';
+                    }
+                })
+                .catch(error => {
+                    showMessage('Error generating audio: ' + error.message, 'error');
+                    audioBtn.disabled = false;
+                    audioBtn.innerHTML = '<i class="fas fa-volume-up"></i> Generate Audio';
+                });
+        }
+
+        function playAudio(wordId) {
+            const word = wordsData.find(w => w.id === wordId);
+            if (!word || !word.audio_file) {
+                console.error('No audio file found for word:', wordId);
+                showMessage('No audio file available for this word', 'error');
+                return;
+            }
+
+            const playBtn = document.getElementById(`playBtn${wordId}`);
+            console.log(`Playing audio for word ${wordId}: ${word.german}, file: ${word.audio_file}`);
+            
+            // Stop current audio if playing
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio = null;
+            }
+
+            // Play new audio
+            currentAudio = new Audio(`/audio/${word.audio_file}`);
+            
+            // Add event listeners for debugging
+            currentAudio.onloadstart = () => console.log('Audio loading started');
+            currentAudio.oncanplay = () => console.log('Audio can play');
+            currentAudio.onerror = (e) => {
+                console.error('Audio error:', e);
+                showMessage('Error playing audio: ' + e.message, 'error');
+                playBtn.innerHTML = '<i class="fas fa-play"></i> Play';
+                playBtn.classList.remove('playing');
+                playBtn.onclick = () => playAudio(wordId);
+            };
+            
+            // Try to play with user interaction
+            try {
+                const playPromise = currentAudio.play();
+                
+                if (playPromise !== undefined) {
+                    playPromise.then(() => {
+                        console.log('Audio playback started successfully');
+                        // Update button state
+                        playBtn.innerHTML = '<i class="fas fa-stop"></i> Stop';
+                        playBtn.classList.add('playing');
+                        playBtn.onclick = () => stopAudio(wordId);
+                    }).catch(error => {
+                        console.error('Audio playback failed:', error);
+                        
+                        // Handle autoplay policy errors
+                        if (error.name === 'NotAllowedError') {
+                            showMessage('Click the play button again to start audio (browser autoplay policy)', 'info');
+                        } else {
+                            showMessage('Failed to play audio: ' + error.message, 'error');
+                        }
+                        
+                        playBtn.innerHTML = '<i class="fas fa-play"></i> Play';
+                        playBtn.classList.remove('playing');
+                        playBtn.onclick = () => playAudio(wordId);
+                    });
+                }
+            } catch (error) {
+                console.error('Audio playback error:', error);
+                showMessage('Audio playback error: ' + error.message, 'error');
+            }
+
+            // Reset button when audio ends
+            currentAudio.onended = () => {
+                console.log('Audio playback ended');
+                playBtn.innerHTML = '<i class="fas fa-play"></i> Play';
+                playBtn.classList.remove('playing');
+                playBtn.onclick = () => playAudio(wordId);
+                currentAudio = null;
+            };
+        }
+
+        function stopAudio(wordId) {
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio = null;
+            }
+            
+            const playBtn = document.getElementById(`playBtn${wordId}`);
+            playBtn.innerHTML = '<i class="fas fa-play"></i> Play';
+            playBtn.classList.remove('playing');
+            playBtn.onclick = () => playAudio(wordId);
+        }
+
+        clearBtn.addEventListener('click', () => {
+            if (confirm('Are you sure you want to clear all data?')) {
+                fetch('/clear-data')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            wordsData = [];
+                            wordsContainer.style.display = 'none';
+                            showMessage(data.message, 'success');
+                        }
+                    })
+                    .catch(error => {
+                        showMessage('Error clearing data: ' + error.message, 'error');
+                    });
+            }
+        });
+
+        function showMessage(message, type) {
+            // Remove existing messages
+            const existingMessages = document.querySelectorAll('.message');
+            existingMessages.forEach(msg => msg.remove());
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            messageDiv.textContent = message;
+
+            document.querySelector('.upload-section').appendChild(messageDiv);
+
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                messageDiv.remove();
+            }, 5000);
+        }
+
+        function testAudioSystem() {
+            const resultDiv = document.getElementById('audioTestResult');
+            resultDiv.innerHTML = '<div style="color: blue;">🧪 Testing audio system...</div>';
+            
+            // Step 1: Generate test audio
+            fetch('/test-audio')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        resultDiv.innerHTML = `<div style="color: green;">✅ Audio generated successfully (${data.file_size} bytes)</div>`;
+                        
+                        // Step 2: Try to play it
+                        const audio = new Audio(`/audio/${data.filename}`);
+                        
+                        audio.oncanplay = () => {
+                            resultDiv.innerHTML += '<div style="color: green;">✅ Audio can be loaded</div>';
+                        };
+                        
+                        audio.onplay = () => {
+                            resultDiv.innerHTML += '<div style="color: green;">✅ Audio playback started!</div>';
+                        };
+                        
+                        audio.onerror = (e) => {
+                            resultDiv.innerHTML += `<div style="color: red;">❌ Audio error: ${e.message}</div>`;
+                        };
+                        
+                        audio.onended = () => {
+                            resultDiv.innerHTML += '<div style="color: green;">✅ Audio playback completed!</div>';
+                        };
+                        
+                        // Try to play
+                        audio.play().catch(error => {
+                            if (error.name === 'NotAllowedError') {
+                                resultDiv.innerHTML += '<div style="color: orange;">⚠️ Browser blocked autoplay. Click the test button again to play.</div>';
+                            } else {
+                                resultDiv.innerHTML += `<div style="color: red;">❌ Playback failed: ${error.message}</div>`;
+                            }
+                        });
+                        
+                    } else {
+                        resultDiv.innerHTML = `<div style="color: red;">❌ Audio generation failed: ${data.error}</div>`;
+                    }
+                })
+                .catch(error => {
+                    resultDiv.innerHTML = `<div style="color: red;">❌ Test failed: ${error.message}</div>`;
+                });
+        }
+
+        // Load words on page load if they exist
+        window.addEventListener('load', () => {
+            if (wordsData.length > 0) {
+                loadWords();
+                wordsContainer.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>

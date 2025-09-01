@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Debug - German Speller</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ccc; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        #log { background: #f5f5f5; padding: 10px; margin: 10px 0; height: 200px; overflow-y: scroll; }
+    </style>
+</head>
+<body>
+    <h1>🔊 Audio Debug - German Speller</h1>
+    
+    <div class="test-section">
+        <h2>1. Test Audio Generation</h2>
+        <button onclick="testAudioGeneration()">Generate Test Audio</button>
+        <div id="generationResult"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. Test Audio Playback</h2>
+        <button onclick="testAudioPlayback()" id="playBtn" disabled>Play Test Audio</button>
+        <div id="playbackResult"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. Test Complete Flow</h2>
+        <button onclick="testCompleteFlow()">Test Complete Flow</button>
+        <div id="completeResult"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>4. Debug Log</h2>
+        <div id="log"></div>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+    
+    <script>
+        let testAudioFile = null;
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = type;
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logDiv.appendChild(logEntry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+        
+        function testAudioGeneration() {
+            log('🧪 Testing audio generation...');
+            document.getElementById('generationResult').innerHTML = 'Testing...';
+            
+            fetch('/test-audio')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        log(`✅ Audio generation successful: ${data.message}`, 'success');
+                        log(`   File size: ${data.file_size} bytes`, 'success');
+                        testAudioFile = data.test_word; // We'll use this for playback test
+                        document.getElementById('generationResult').innerHTML = 
+                            `<span class="success">✅ ${data.message} (${data.file_size} bytes)</span>`;
+                    } else {
+                        log(`❌ Audio generation failed: ${data.error}`, 'error');
+                        document.getElementById('generationResult').innerHTML = 
+                            `<span class="error">❌ ${data.error}</span>`;
+                    }
+                })
+                .catch(error => {
+                    log(`❌ Request failed: ${error.message}`, 'error');
+                    document.getElementById('generationResult').innerHTML = 
+                        `<span class="error">❌ Request failed: ${error.message}</span>`;
+                });
+        }
+        
+        function testAudioPlayback() {
+            if (!testAudioFile) {
+                log('❌ No audio file available. Generate audio first.', 'error');
+                return;
+            }
+            
+            log('🎵 Testing audio playback...');
+            document.getElementById('playbackResult').innerHTML = 'Testing...';
+            
+            // Create a test audio element
+            const audio = new Audio('/audio/test_audio.mp3');
+            
+            audio.onloadstart = () => log('Audio loading started');
+            audio.oncanplay = () => log('Audio can play');
+            audio.onplay = () => {
+                log('✅ Audio playback started successfully', 'success');
+                document.getElementById('playbackResult').innerHTML = 
+                    '<span class="success">✅ Audio playback started</span>';
+            };
+            audio.onerror = (e) => {
+                log(`❌ Audio error: ${e.message}`, 'error');
+                document.getElementById('playbackResult').innerHTML = 
+                    `<span class="error">❌ Audio error: ${e.message}</span>`;
+            };
+            audio.onended = () => {
+                log('Audio playback ended');
+                document.getElementById('playbackResult').innerHTML = 
+                    '<span class="success">✅ Audio playback completed</span>';
+            };
+            
+            // Try to play
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    log(`❌ Playback failed: ${error.message}`, 'error');
+                    document.getElementById('playbackResult').innerHTML = 
+                        `<span class="error">❌ Playback failed: ${error.message}</span>`;
+                });
+            }
+        }
+        
+        function testCompleteFlow() {
+            log('🔄 Testing complete audio flow...');
+            document.getElementById('completeResult').innerHTML = 'Testing...';
+            
+            // Step 1: Generate audio
+            fetch('/test-audio')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        log(`✅ Step 1: Audio generated (${data.file_size} bytes)`, 'success');
+                        
+                        // Step 2: Try to play it
+                        const audio = new Audio('/audio/test_audio.mp3');
+                        audio.oncanplay = () => {
+                            log('✅ Step 2: Audio can be played', 'success');
+                            document.getElementById('completeResult').innerHTML = 
+                                '<span class="success">✅ Complete flow successful!</span>';
+                        };
+                        audio.onerror = (e) => {
+                            log(`❌ Step 2: Audio playback failed: ${e.message}`, 'error');
+                            document.getElementById('completeResult').innerHTML = 
+                                `<span class="error">❌ Complete flow failed: ${e.message}</span>`;
+                        };
+                        
+                        // Try to play
+                        audio.play().catch(error => {
+                            log(`❌ Playback error: ${error.message}`, 'error');
+                        });
+                        
+                    } else {
+                        log(`❌ Step 1 failed: ${data.error}`, 'error');
+                        document.getElementById('completeResult').innerHTML = 
+                            `<span class="error">❌ ${data.error}</span>`;
+                    }
+                })
+                .catch(error => {
+                    log(`❌ Complete flow failed: ${error.message}`, 'error');
+                    document.getElementById('completeResult').innerHTML = 
+                        `<span class="error">❌ ${error.message}</span>`;
+                });
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+        
+        // Enable play button when audio is generated
+        function enablePlayButton() {
+            document.getElementById('playBtn').disabled = false;
+        }
+        
+        log('🔊 Audio Debug Page Loaded');
+        log('Click "Test Audio Generation" to start testing');
+    </script>
+</body>
+</html>
