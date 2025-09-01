@@ -96,7 +96,7 @@ function App() {
           input: { text: word },
           voice: {
             languageCode: 'de-DE',
-            name: 'de-DE-Neural2-B', // High-quality German voice
+            name: 'de-DE-Neural2-A', // High-quality German female voice
             ssmlGender: 'FEMALE'
           },
           audioConfig: {
@@ -375,7 +375,7 @@ function App() {
           input: { text: testWord },
           voice: {
             languageCode: 'de-DE',
-            name: 'de-DE-Neural2-B',
+            name: 'de-DE-Neural2-A', // High-quality German female voice
             ssmlGender: 'FEMALE'
           },
           audioConfig: {
@@ -415,7 +415,7 @@ function App() {
 
       const data = await response.json();
       setAudioTestResult(prev => prev + '\n✅ Google Cloud TTS API connected successfully');
-      setAudioTestResult(prev => prev + '\n🌟 Using premium German neural voice: de-DE-Neural2-B');
+      setAudioTestResult(prev => prev + '\n🌟 Using premium German neural voice: de-DE-Neural2-A (Female)');
       
       // Play the audio
       const audioContent = data.audioContent;

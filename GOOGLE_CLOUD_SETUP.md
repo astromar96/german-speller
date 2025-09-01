@@ -32,6 +32,7 @@ The 401 error means your Google Cloud API key is not working properly. **The app
 1. Paste the API key in the app
 2. Click "Test Audio System"
 3. You should see "✅ Google Cloud TTS API connected successfully"
+4. The app uses `de-DE-Neural2-A` (German female neural voice) for high-quality pronunciation
 
 ## Common Issues & Solutions
 
