@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
+import OpenAI from 'openai';
 import './App.css';
 
 interface WordData {
@@ -22,8 +23,17 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const speechSynthesisRef = useRef<SpeechSynthesis | null>(null);
   
+  // Image recognition states
+  const [activeTab, setActiveTab] = useState<'excel' | 'image'>('excel');
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [extractedWords, setExtractedWords] = useState<WordData[]>([]);
+  
   // Embedded Google Cloud API key
   const GOOGLE_CLOUD_API_KEY = 'AIzaSyCsx1IyPxscQ1YpPOGEHSBRQBQPvFjog7k';
+  
+  // ChatGPT API key - Replace with your actual API key
+  const OPENAI_API_KEY = 'your-openai-api-key-here';
 
   // Check if debug mode is enabled via query parameter
   const isDebugMode = () => {
@@ -176,6 +186,142 @@ function App() {
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const processImage = async (file: File) => {
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      showMessage('Please upload a valid image file (JPEG, PNG, or WebP)', 'error');
+      return;
+    }
+
+    setIsProcessingImage(true);
+    
+    try {
+      // Create image preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+
+      // Convert image to base64 for API
+      const base64Image = await fileToBase64(file);
+      
+      // Initialize OpenAI client
+      const openai = new OpenAI({
+        apiKey: OPENAI_API_KEY,
+        dangerouslyAllowBrowser: true // Note: This is not recommended for production
+      });
+
+      // Create prompt for extracting German words
+      const prompt = `Analyze this image of a German glossary or vocabulary list. Extract all German words and their Arabic translations.
+
+Please return the data in this exact JSON format:
+[
+  {
+    "german": "German word or phrase",
+    "arabic": "Arabic translation"
+  }
+]
+
+Rules:
+1. Only extract words that are clearly German
+2. Provide accurate Arabic translations
+3. Skip any non-German text or unclear entries
+4. Return valid JSON only, no additional text
+5. If no German words found, return empty array []
+
+Example output:
+[
+  {
+    "german": "Hallo",
+    "arabic": "مرحبا"
+  },
+  {
+    "german": "Guten Morgen",
+    "arabic": "صباح الخير"
+  }
+]`;
+
+      // Call ChatGPT Vision API
+      const response = await openai.chat.completions.create({
+        model: "gpt-4-vision-preview",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: prompt },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:${file.type};base64,${base64Image}`
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 1000,
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error('No response from ChatGPT API');
+      }
+
+      // Parse the JSON response
+      let wordsData: WordData[] = [];
+      try {
+        // Extract JSON from the response (remove any markdown formatting)
+        const jsonMatch = content.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          wordsData = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error('No valid JSON found in response');
+        }
+      } catch (parseError) {
+        console.error('JSON parsing error:', parseError);
+        console.log('Raw response:', content);
+        throw new Error('Failed to parse ChatGPT response. Please try again.');
+      }
+
+      if (wordsData.length === 0) {
+        throw new Error('No German words found in the image. Please ensure the image contains a clear German glossary.');
+      }
+
+      // Add IDs to the extracted words
+      const wordsWithIds = wordsData.map((word, index) => ({
+        ...word,
+        id: index
+      }));
+
+      setExtractedWords(wordsWithIds);
+      setWordsData(wordsWithIds);
+      showMessage(`Successfully extracted ${wordsWithIds.length} German words from image!`, 'success');
+
+    } catch (error) {
+      console.error('Image processing error:', error);
+      showMessage(`Image processing failed: ${(error as Error).message}`, 'error');
+      setImagePreview(null);
+    } finally {
+      setIsProcessingImage(false);
+    }
+  };
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const result = reader.result as string;
+        const base64 = result.split(',')[1]; // Remove data:image/...;base64, prefix
+        resolve(base64);
+      };
+      reader.onerror = error => reject(error);
+    });
   };
 
   const speakWord = (word: string) => {
@@ -522,11 +668,38 @@ function App() {
           </div>
         )}
 
-        {/* File Upload Section */}
+        {/* Tab Navigation */}
+        <div className="mb-6">
+          <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
+            <button
+              onClick={() => setActiveTab('excel')}
+              className={`flex-1 py-2 px-4 rounded-md font-medium transition-all ${
+                activeTab === 'excel'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+              }`}
+            >
+              📊 Excel Upload
+            </button>
+            <button
+              onClick={() => setActiveTab('image')}
+              className={`flex-1 py-2 px-4 rounded-md font-medium transition-all ${
+                activeTab === 'image'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+              }`}
+            >
+              🖼️ Image Recognition
+            </button>
+          </div>
+        </div>
+
+        {/* Excel Upload Section */}
+        {activeTab === 'excel' && (
         <div className="mb-8 p-6 bg-white rounded-lg shadow-lg">
           <h2 className="text-2xl font-semibold mb-4 flex items-center">
             <span className="mr-2">📁</span>
-            Upload German Words
+            Upload German Words from Excel
           </h2>
           
                     <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded">
@@ -582,6 +755,89 @@ function App() {
             />
           </div>
         </div>
+        )}
+
+        {/* Image Recognition Section */}
+        {activeTab === 'image' && (
+        <div className="mb-8 p-6 bg-white rounded-lg shadow-lg">
+          <h2 className="text-2xl font-semibold mb-4 flex items-center">
+            <span className="mr-2">🖼️</span>
+            Extract German Words from Image
+          </h2>
+          
+          <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded">
+            <p className="text-sm text-blue-800">
+              🖼️ <strong>Supported formats:</strong> JPEG, PNG, or WebP images of German glossaries
+            </p>
+            <p className="text-sm text-blue-800 mt-2">
+              🤖 <strong>AI-powered:</strong> Uses ChatGPT Vision API to extract German words and Arabic translations
+            </p>
+            <p className="text-sm text-blue-800 mt-2">
+              ⚠️ <strong>Important:</strong> Replace 'your-openai-api-key-here' with your actual OpenAI API key in the code
+            </p>
+            <p className="text-sm text-blue-800 mt-2">
+              💡 <strong>Best results:</strong> Clear, well-lit images with readable text and good contrast
+            </p>
+          </div>
+
+          {/* Image Preview */}
+          {imagePreview && (
+            <div className="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+              <h3 className="text-lg font-semibold mb-3">📸 Image Preview</h3>
+              <img 
+                src={imagePreview} 
+                alt="Uploaded glossary" 
+                className="max-w-full h-auto max-h-64 rounded-lg border border-gray-300"
+              />
+            </div>
+          )}
+
+          {/* Image Upload Area */}
+          <div
+            className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors cursor-pointer"
+            onDrop={(e) => {
+              e.preventDefault();
+              const file = e.dataTransfer.files[0];
+              if (file) processImage(file);
+            }}
+            onDragOver={handleDragOver}
+            onClick={() => document.getElementById('image-input')?.click()}
+          >
+            <div className="text-6xl mb-4">🖼️</div>
+            <p className="text-lg text-gray-600 mb-2">
+              {isProcessingImage ? 'Processing image...' : 'Drop your glossary image here or click to browse'}
+            </p>
+            <p className="text-sm text-gray-500">
+              {isProcessingImage ? 'AI is analyzing your image...' : 'Supports JPEG, PNG, and WebP files'}
+            </p>
+            <p className="text-xs text-blue-600 mt-2">
+              🤖 ChatGPT Vision API will extract German words and Arabic translations
+            </p>
+            <input
+              id="image-input"
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) processImage(file);
+              }}
+              className="hidden"
+            />
+          </div>
+
+          {/* Extracted Words Display */}
+          {extractedWords.length > 0 && (
+            <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <h3 className="text-lg font-semibold mb-3 text-green-800">
+                ✅ Successfully Extracted {extractedWords.length} Words
+              </h3>
+              <p className="text-sm text-green-700 mb-3">
+                These words are now available in the main word list below and can be pronounced with audio.
+              </p>
+            </div>
+          )}
+        </div>
+        )}
 
         {/* Audio System Section */}
         <div className="mb-8 p-6 bg-white rounded-lg shadow-lg">
