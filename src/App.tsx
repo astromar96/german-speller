@@ -32,8 +32,8 @@ function App() {
   // Embedded Google Cloud API key
   const GOOGLE_CLOUD_API_KEY = 'AIzaSyCsx1IyPxscQ1YpPOGEHSBRQBQPvFjog7k';
   
-  // ChatGPT API key - Replace with your actual API key
-  const OPENAI_API_KEY = 'your-openai-api-key-here';
+  // ChatGPT API key - Use environment variable or set directly
+  const OPENAI_API_KEY = process.env.REACT_APP_OPENAI_API_KEY || '';
 
   // Check if debug mode is enabled via query parameter
   const isDebugMode = () => {
@@ -196,6 +196,16 @@ function App() {
     if (!validTypes.includes(file.type)) {
       showMessage('Please upload a valid image file (JPEG, PNG, or WebP)', 'error');
       return;
+    }
+
+    // Debug: Log API key status (only in debug mode)
+    if (isDebugMode()) {
+      console.log('API Key Status:', {
+        hasEnvVar: !!process.env.REACT_APP_OPENAI_API_KEY,
+        envVarLength: process.env.REACT_APP_OPENAI_API_KEY?.length || 0,
+        finalKeyLength: OPENAI_API_KEY.length,
+        isPlaceholder: OPENAI_API_KEY === 'your-openai-api-key-here'
+      });
     }
 
     setIsProcessingImage(true);
